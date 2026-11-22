@@ -89,7 +89,7 @@ sudo apt install -y git zip unzip openjdk-17-jdk python3-pip python3-venv \
 
 ### 2. Klonowanie, środowisko `venv` i łatki
 ```bash
-git clone [https://github.com/Payti/EnigmaTVApp.git](https://github.com/Payti/EnigmaTVApp.git)
+git clone https://github.com/Payti/EnigmaTVApp.git
 cd EnigmaTVApp
 
 mkdir -p "$HOME/.gradle"
