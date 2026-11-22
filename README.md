@@ -153,3 +153,11 @@ E_DRIVE="$HOME/Pulpit" ./build_and_backup.sh 1.3
   - Wersja bazowa: pełna obsługa pilota Android TV przez `PythonActivity.dispatchKeyEvent`, sprzętowy LibVLC na `TextureView`, pobieranie bukietów, pikon i EPG z OpenWebif, baner Leanback oraz przezroczysty ekran startowy 16:9.
 
 </details>
+
+---
+
+## Dotacja
+
+Projekt **Enigma2 TV** jest darmowy i rozwijany hobbystycznie na licencji MIT. Jeśli aplikacja jest dla Ciebie przydatna i chcesz wesprzeć jej dalszy rozwój, możesz przekazać dobrowolną dotację przez PayPal — **zebrane środki zostaną przeznaczone na testy aplikacji na nowych urządzeniach z Android TV**.
+
+[![PayPal](https://img.shields.io/badge/PayPal-Wesprzyj%20projekt-00457C?style=flat-square&logo=paypal&logoColor=white)](https://www.paypal.com/paypalme/Payti)
