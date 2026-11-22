@@ -88,6 +88,7 @@ jobs:
       - name: Build Android APK
         run: |
           sed -i 's/^#\?[[:space:]]*android\.accept_sdk_license[[:space:]]*=.*/android.accept_sdk_license = True/' buildozer.spec
+          rm -rf .buildozer/android/platform/build-*/build/venv
           buildozer -v android debug
           ls -lh bin/*.apk
 
