@@ -7,6 +7,8 @@
 [![LibVLC](https://img.shields.io/badge/player-LibVLC%203.6.0-ff8800?style=flat-square&logo=vlcmediaplayer&logoColor=white)](#architektura)
 [![Last Commit](https://img.shields.io/github/last-commit/Payti/EnigmaTVApp?style=flat-square&label=Last%20Commit)](https://github.com/Payti/EnigmaTVApp/commits/main)
 [![Releases](https://img.shields.io/github/v/release/Payti/EnigmaTVApp?include_prereleases&style=flat-square&label=Latest%20Release)](https://github.com/Payti/EnigmaTVApp/releases)
+[![Build & Release APK](https://img.shields.io/github/actions/workflow/status/Payti/EnigmaTVApp/build-apk.yml?style=flat-square&label=Build%20%26%20Release%20APK&logo=githubactions&logoColor=white)](https://github.com/Payti/EnigmaTVApp/actions/workflows/build-apk.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
 Aplikacja **Enigma2 TV** zaprojektowana od podstaw pod obsługę pilotem na urządzeniach **Android TV** (przetestowana m.in. na **Xiaomi Mi Box 4K**). Łączy się z dekoderem satelitarnym/kablowym przez **OpenWebif API**, pobiera listy bukietów, pikony i pełne EPG, a strumienie wideo (DVB/SAT oraz osadzone IPTV) odtwarza sprzętowo przez natywny silnik **LibVLC** na warstwie `TextureView`.
 
