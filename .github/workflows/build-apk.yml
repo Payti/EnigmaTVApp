@@ -1,0 +1,106 @@
+name: Build & Release APK
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost
+          df -h /
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev \
+            patch build-essential lld
+
+      - name: Cache Buildozer & Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.buildozer
+            .buildozer
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec', 'p4a_patches/build.py') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Install Buildozer & Python tools
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install buildozer cython pillow
+          python -m py_compile main.py p4a_hook.py
+
+      - name: Configure Gradle properties
+        run: |
+          mkdir -p "$HOME/.gradle"
+          if [ -f p4a_patches/gradle.properties ]; then
+            cp -a p4a_patches/gradle.properties "$HOME/.gradle/gradle.properties"
+          else
+            printf "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\norg.gradle.daemon=false\n" > "$HOME/.gradle/gradle.properties"
+          fi
+
+      - name: Sync version in buildozer.spec with Git tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VER="${GITHUB_REF_NAME#v}"
+          echo "Setting buildozer.spec version to ${TAG_VER}"
+          sed -i "s/^version = .*/version = ${TAG_VER}/" buildozer.spec
+          grep '^version =' buildozer.spec
+
+      - name: Update p4a and apply local patches
+        run: |
+          yes | buildozer android update || true
+          P4A_TARGET=".buildozer/android/platform/python-for-android/pythonforandroid/build.py"
+          if [ -f p4a_patches/build.py ] && [ -f "$P4A_TARGET" ]; then
+            cp -a p4a_patches/build.py "$P4A_TARGET"
+            echo "Applied p4a_patches/build.py"
+          fi
+
+      - name: Build Android APK
+        run: |
+          yes | buildozer -v android debug
+          ls -lh bin/*.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enigma2tv-apk-${{ github.ref_name }}
+          path: bin/*.apk
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Enigma2 TV ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: bin/*.apk
