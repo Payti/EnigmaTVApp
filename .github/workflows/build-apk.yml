@@ -93,7 +93,7 @@ jobs:
           ls -lh bin/*.apk
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: enigma2tv-apk-${{ github.ref_name }}
           path: bin/*.apk
