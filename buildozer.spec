@@ -4,7 +4,7 @@ package.name = enigma2tv
 package.domain = pl.dom.enigma
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-source.exclude_dirs = venv, tests, bin, .buildozer, .git, backup_v1.0, backup_v1.1, backup_v1.2, backup_v.
+source.exclude_dirs = venv, tests, bin, .buildozer, .git, backup_v1.0, backup_v1.1, backup_v1.2, backup_v., screenshots
 version = 1.2
 
 requirements = python3,kivy,pyjnius

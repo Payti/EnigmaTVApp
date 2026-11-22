@@ -15,6 +15,26 @@ Aplikacja **Enigma2 TV** zaprojektowana od podstaw pod obsługę pilotem na urz�
 
 ---
 
+## Zrzuty ekranu
+
+| Aplikacja w Android TV | Ustawienia IP, pikon i trybu PIP |
+| :---: | :---: |
+| ![Aplikacja Enigma2 TV](screenshots/01_app.png) | ![Ustawienia IP, pikon i trybu PIP](screenshots/02_ustawienia.png) |
+
+| Lista kanałów z podglądem PIP | Pełny ekran z Infobarem Enigma2 (`OK`) |
+| :---: | :---: |
+| ![Lista kanałów z podglądem PIP](screenshots/03_lista.png) | ![Infobar Enigma2 z pikoną i parametrami strumienia](screenshots/04_infobar.png) |
+
+| Wybór ścieżki Audio i Napisów | Przewodnik EPG (Pojedynczy / Multi EPG) |
+| :---: | :---: |
+| ![Wybór ścieżki Audio i Napisów](screenshots/05_audio_sub.png) | ![Przewodnik EPG](screenshots/06_epg.png) |
+
+| Odtwarzanie kanału 4K UHD (H.265/HEVC) |
+| :---: |
+| ![Odtwarzanie kanału 4K UHD](screenshots/07_4k.png) |
+
+---
+
 ## Najważniejsze funkcje (v1.2)
 
 | Obszar | Możliwości |
