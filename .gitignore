@@ -1,0 +1,10 @@
+.buildozer/
+venv/
+bin/
+backup_v*/
+__pycache__/
+*.pyc
+*.pyo
+*.apk
+*.tar.gz
+.DS_Store
