@@ -41,6 +41,28 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 - **Rozbudowana obsługa pilota** — podwójne szybkie **`◄` (Lewo)** na liście kanałów i w EPG przenosi fokus na przyciski **`EPG` / `MENU` / `EXIT`**; oprogramowano wszystkie 4 kolorowe przyciski na liście kanałów (**Czerwony** – Bukiety/Menu, **Zielony** – Odśwież, **Żółty** – Podgląd PIP, **Niebieski** – Ustawienia IP).
 - **Poprawne dekodowanie znaków w EPG i Infobarze** — dekodowanie encji HTML (`&quot;`, `&amp;`, `&#39;`, `&nbsp;` itd.), znaczników `<br>` oraz znaków sterujących DVB w tytułach, opisach i nazwach kanałów.
 
+<details>
+<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.2)</strong></summary>
+
+### v1.2
+- **Dwa tryby podglądu PIP (PIG) na liście kanałów** — dodano wybór między trybem *Enigma2 (ostatni oglądany)* (chodzenie po liście i zmiana bukietów nie przerywa podglądu) oraz *Auto (podąża za kursorem)* (automatyczny podgląd po ok. 1 s postoju na kanale).
+- **Kolorowe menu bukietów i opcji pod `◄`** — szybkie przełączanie bukietów, zmiana trybu PIP, wywołanie EPG, odświeżenie listy, wejście w ustawienia i zamknięcie aplikacji z jednego panelu bez zasłaniania podglądu PIP.
+- **Dedykowany baner Android TV (Leanback)** oraz szybkie zamykanie aplikacji przez podwójne naciśnięcie `Wstecz` (`2× Wstecz`).
+- **Zapamiętywanie ostatnio oglądanego kanału i bukietu** pomiędzy uruchomieniami aplikacji.
+
+### v1.1
+- **Infobar w stylu Enigma2 (pod `OK` na pełnym ekranie)** — pikona kanału, 2 wiersze EPG (aktualna audycja z paskiem postępu i czasem do końca + następna), zegar z datą oraz pełna diagnostyka strumienia na żywo (rozdzielczość `4K UHD` / `FHD` / `HD` / `SD` z korektą DVB `1088→1080`, proporcje, FPS, kodek wideo, ścieżka audio, liczba ścieżek napisów, bitrate Mbps, zgubione klatki).
+- **Natywna nakładka wyboru Audio i Napisów** na pełnym ekranie (obsługa napisów DVB Sub i Teletext oraz możliwość ich wyłączenia).
+- **Pełny przewodnik EPG** — Pojedynczy EPG, Multi EPG dla całego bukietu, szczegółowy opis audycji z wyszukiwaniem podobnych emisji oraz zdalne dodawanie timerów nagrywania na dekoderze.
+- **Asynchroniczne pobieranie i lokalny cache pikon** z dekodera (domyślnie `/usr/share/enigma2/picon`).
+
+### v1.0
+- Pierwsze wydanie klienta **Enigma2 TV** dla Android TV (Kivy/Python + natywny **LibVLC 3.6.0** ze sprzętowym dekodowaniem na `TextureView`).
+- Integracja z **OpenWebif API** (pobieranie bukietów i listy kanałów z portu `80`, bezpośredni odczyt strumienia z portu `8001` oraz obsługa kanałów IPTV w bukietach).
+- Lista kanałów z wbudowanym podglądem PIP, pełnoekranowe odtwarzanie H.264 / H.265 HEVC / MPEG-2 (w tym 4K UHD) oraz ekran konfiguracji IP z klawiaturą numeryczną obsługiwaną pilotem.
+
+</details>
+
 ---
 
 ## Najważniejsze funkcje
@@ -89,17 +111,50 @@ Gotowe paczki `.apk` są dostępne w zakładce [**Releases**](https://github.com
 ### Instalacja przez ADB (zalecane na Android TV 11+, np. Philips 65PUS8536)
 
 > [!NOTE]
-> Telewizory z Android TV 11+ często blokują instalację plików `.apk` bezpośrednio z pendrive'a. Instalacja po sieci przez **ADB** omija to ograniczenie i zachowuje dotychczasową konfigurację przy aktualizacji (`-r`).
+> Telewizory z Android TV 11+ często blokują instalację plików `.apk` bezpośrednio z pendrive'a. Instalacja po sieci przez **ADB** omija to ograniczenie, a flaga `-r` zachowuje zapisaną konfigurację IP i cache pikon podczas aktualizacji.
 
-1. Na TV włącz **Opcje programisty** (*Ustawienia Androida → Informacje → 7× OK na Kompilacja*) oraz **Debugowanie USB**, a następnie odczytaj adres IP telewizora.
-2. Na komputerze (Ubuntu/Linux):
+#### Krok 1: Włączenie debugowania na telewizorze / przystawce Android TV
+
+1. Wejdź w **Ustawienia Androida → Ustawienia urządzenia → Informacje → Kompilacja** i naciśnij **OK** 7 razy, aż pojawi się komunikat o włączeniu trybu programisty.
+2. Wróć do **Ustawienia urządzenia → Opcje programisty** i włącz **Debugowanie USB** (jeśli jest dostępna opcja *Weryfikuj aplikacje przez USB*, wyłącz ją).
+3. Sprawdź adres IP telewizora w ustawieniach sieci (np. `192.168.1.50`).
+
+#### Krok 2a: Instalacja z komputera Linux (Ubuntu)
 
 ```bash
 sudo apt update && sudo apt install -y adb
 adb connect <IP_TELEWIZORA>:5555
+```
+
+Zaakceptuj na ekranie telewizora komunikat **Zezwolić na debugowanie USB?** (*Zawsze zezwalaj z tego komputera → OK*), a następnie zainstaluj plik APK:
+
+```bash
+adb devices
 adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk
 adb disconnect <IP_TELEWIZORA>:5555
 ```
+
+#### Krok 2b: Instalacja z komputera Windows (ADB / Platform-Tools)
+
+1. Pobierz oficjalną paczkę **SDK Platform-Tools for Windows** ze strony Google: [platform-tools-latest-windows.zip](https://dl.google.com/android/repository/platform-tools-latest-windows.zip).
+2. Rozpakuj archiwum do prostego katalogu, np. `C:\adb` (lub `C:\platform-tools`), i skopiuj do tego samego folderu pobrany plik `enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk`.
+3. Otwórz **Wiersz poleceń (`cmd`)** w tym folderze (w pasku adresu Eksploratora Windows wpisz `cmd` i naciśnij `Enter`).
+4. Połącz się z telewizorem:
+
+```cmd
+adb connect <IP_TELEWIZORA>:5555
+```
+
+5. Na ekranie telewizora zatwierdź monit **Zezwolić na debugowanie USB?** (*Zawsze zezwalaj z tego komputera → OK*).
+6. Sprawdź połączenie i zainstaluj aplikację:
+
+```cmd
+adb devices
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk
+adb disconnect <IP_TELEWIZORA>:5555
+```
+
+*(W PowerShell zamiast `adb` użyj `.\adb`. Po pojawieniu się komunikatu `Success` aplikacja **Enigma2 TV** będzie gotowa do uruchomienia na ekranie Android TV.)*
 
 ---
 
