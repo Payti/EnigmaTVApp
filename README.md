@@ -1,27 +1,23 @@
-# EnigmaTVApp
+# Enigma2 TV
 
-### Klient Android TV dla dekoderów Enigma2 (Kivy + sprzętowy LibVLC 3.6.0, obsługa pilotem, EPG, PIP i wybór ścieżek Audio/Napisów)
+### Lekki klient dekoderów Enigma2 dla Android TV z natywnym silnikiem LibVLC
 
-[![Version](https://img.shields.io/badge/version-v1.2-00b8d4?style=flat-square)](https://github.com/Payti/EnigmaTVApp/releases)
-[![Platform](https://img.shields.io/badge/platform-Android%20TV%20%7C%20Desktop-3ddc84?style=flat-square&logo=android&logoColor=white)](#instalacja)
-[![LibVLC](https://img.shields.io/badge/player-LibVLC%203.6.0-ff8800?style=flat-square&logo=vlcmediaplayer&logoColor=white)](#architektura)
-[![Last Commit](https://img.shields.io/github/last-commit/Payti/EnigmaTVApp?style=flat-square&label=Last%20Commit)](https://github.com/Payti/EnigmaTVApp/commits/main)
-[![Releases](https://img.shields.io/github/v/release/Payti/EnigmaTVApp?include_prereleases&style=flat-square&label=Latest%20Release)](https://github.com/Payti/EnigmaTVApp/releases)
 [![Build & Release APK](https://img.shields.io/github/actions/workflow/status/Payti/EnigmaTVApp/build-apk.yml?style=flat-square&label=Build%20%26%20Release%20APK&logo=githubactions&logoColor=white)](https://github.com/Payti/EnigmaTVApp/actions/workflows/build-apk.yml)
+[![Latest Release](https://img.shields.io/github/v/release/Payti/EnigmaTVApp?style=flat-square&label=Latest%20Release)](https://github.com/Payti/EnigmaTVApp/releases)
+[![Last Commit](https://img.shields.io/github/last-commit/Payti/EnigmaTVApp?style=flat-square&label=Last%20Commit)](https://github.com/Payti/EnigmaTVApp/commits/main)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 
-Aplikacja **Enigma2 TV** zaprojektowana od podstaw pod obsługę pilotem na urządzeniach **Android TV** (przetestowana m.in. na **Xiaomi Mi Box 4K**). Łączy się z dekoderem satelitarnym/kablowym przez **OpenWebif API**, pobiera listy bukietów, pikony i pełne EPG, a strumienie wideo (DVB/SAT oraz osadzone IPTV) odtwarza sprzętowo przez natywny silnik **LibVLC** na warstwie `TextureView`.
+Aplikacja **Enigma2 TV** zaprojektowana typowo pod **Android TV** i pełną obsługę zwykłym pilotem. Łączy się bezpośrednio z dekoderem w sieci lokalnej przez **OpenWebif API** (domyślnie port `80` + strumień na porcie `8001`), bez transkodowania po stronie tunera. Odtwarzanie realizuje natywny silnik **LibVLC 3.6.0** ze sprzętowym dekodowaniem (H.264 / H.265 HEVC / MPEG-2), obsługując kanały **SD / HD / Full HD / 4K UHD** oraz streamy IPTV z bukietów.
 
-> [!NOTE]
-> Aplikacja działa bezpośrednio w sieci lokalnej z OpenWebif (domyślnie port `80` dla API/pikon oraz port `8001` dla strumienia). Nie wymaga transkodowania po stronie dekodera.
+Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 
 ---
 
 ## Zrzuty ekranu
 
-| Aplikacja w Android TV | Ustawienia IP, pikon i trybu PIP |
+| Aplikacja w Android TV | Ustawienia IP, logowania OpenWebif, pikon, PIP i klawiatura TV |
 | :---: | :---: |
-| ![Aplikacja Enigma2 TV](screenshots/01_app.png) | ![Ustawienia IP, pikon i trybu PIP](screenshots/02_ustawienia.png) |
+| ![Aplikacja Enigma2 TV](screenshots/01_app.png) | ![Ustawienia IP, logowania OpenWebif, pikon, PIP i klawiatura TV](screenshots/02_ustawienia.png) |
 
 | Lista kanałów z podglądem PIP | Pełny ekran z Infobarem Enigma2 (`OK`) |
 | :---: | :---: |
@@ -37,122 +33,90 @@ Aplikacja **Enigma2 TV** zaprojektowana od podstaw pod obsługę pilotem na urz�
 
 ---
 
-## Najważniejsze funkcje (v1.2)
+## Co nowego w v1.3
 
-| Obszar | Możliwości |
-|---|---|
-| **Odtwarzacz LibVLC (HW)** | Natywny sterownik `TvVlcController.java` na `TextureView` (sprzętowe dekodowanie `H.264`, `H.265/HEVC`, `MPEG-2`), błyskawiczne przełączanie kanałów i brak konfliktów Z-order z interfejsem Kivy |
-| **Dwa tryby podglądu PIP (PIG)** | **Auto (podąża za kursorem)** – podgląd po ~1 s postoju na kanale; **Enigma2 (ostatni oglądany)** – utrzymuje bieżący kanał w oknie PIP podczas przeglądania listy i bukietów, a po starcie uruchamia ostatnio oglądany lub pierwszy kanał |
-| **Infobar Enigma2 (pod `OK`)** | Pikona kanału po lewej stronie, 2 wiersze EPG (*Aktualnie* z paskiem postępu i `+XX min` oraz *Następnie*), bieżący zegar z datą, znacznik `LIVE`/`BUFOR` oraz pełna telemetria strumienia na żywo |
-| **Telemetria strumienia** | Rozdzielczość z normalizacją DVB (`1088 → 1080`, `544 → 540`), etykieta (`4K UHD` / `FHD` / `HD` / `SD`), proporcje (`16:9` / `4:3`), `FPS`, kodek wideo, aktywne audio (kodek, kanały `5.1`/`2.0`, próbkowanie `kHz`, język, liczba ścieżek), liczba napisów, bitrate (`Mbps`/`kbps`), zgubione klatki (`Drop`) |
-| **Audio i Napisy na pełnym ekranie** | Natywna nakładka wyboru ścieżek dźwiękowych i napisów (DVB Sub / Teletext) dostępna jednym przyciskiem z pilota, z możliwością wyłączenia napisów lub dźwięku |
-| **Pełny ekran EPG** | Widok **Pojedynczy EPG**, **Multi EPG** dla całego bukietu, **Info / Opis** z wyszukiwaniem podobnych audycji oraz zdalne **dodawanie timerów** nagrywania na dekoderze |
-| **Interfejs Android TV** | Dedykowany baner Leanback (`640×360`), przezroczysty ekran startowy 16:9, ekranowa klawiatura numeryczna do wpisania IP/portów pilotem, kolorowe menu opcji pod `◄` oraz zamykanie aplikacji przez **2× Wstecz** |
+- **Natychmiastowe okno EPG z animacją ładowania** — cały interfejs EPG pojawia się od razu bez czarnego ekranu, wyświetlając obracający się wskaźnik i komunikat `Pobieram EPG z dekodera ...` na czas pobierania danych z dekodera oraz porcjowanego renderowania wierszy.
+- **Logowanie do OpenWebif (HTTP Basic Auth)** — nowe pola `Użytkownik OpenWebif` i `Hasło OpenWebif` (gdy puste, aplikacja łączy się bez uwierzytelniania) oraz opcjonalny checkbox **Autoryzacja strumienia (port 8001)** dopisujący dane logowania do adresu wideo dopiero po jego włączeniu.
+- **Przełączana klawiatura ekranowa TV** — tryby **`123`**, **`abc`**, **`ABC`** oraz **`#@!`** (ze znakami `/`, `_`, `-`, `.` i spacją) obsługiwane pilotem dla pól IP, użytkownika, hasła i własnej ścieżki pikon.
+- **Rozbudowana obsługa pilota** — podwójne szybkie **`◄` (Lewo)** na liście kanałów i w EPG przenosi fokus na przyciski **`EPG` / `MENU` / `EXIT`**; oprogramowano wszystkie 4 kolorowe przyciski na liście kanałów (**Czerwony** – Bukiety/Menu, **Zielony** – Odśwież, **Żółty** – Podgląd PIP, **Niebieski** – Ustawienia IP).
+- **Poprawne dekodowanie znaków w EPG i Infobarze** — dekodowanie encji HTML (`&quot;`, `&amp;`, `&#39;`, `&nbsp;` itd.), znaczników `<br>` oraz znaków sterujących DVB w tytułach, opisach i nazwach kanałów.
+
+---
+
+## Najważniejsze funkcje
+
+- **Dwa tryby podglądu PIP (PIG) na liście kanałów:**
+  - *Enigma2 (ostatni oglądany)* — po uruchomieniu odtwarza ostatni oglądany kanał, a przeglądanie listy i bukietów nie przerywa podglądu.
+  - *Auto (podąża za kursorem)* — automatycznie uruchamia podgląd po ok. 1 s postoju na wybranym kanale.
+- **Infobar w stylu Enigma2 (pod `OK` na pełnym ekranie)** — pikona kanału, aktualna i następna audycja EPG z paskiem postępu i czasem do końca, zegar z datą oraz diagnostyka strumienia na żywo: rozdzielczość (`4K UHD` / `FHD` / `HD` / `SD`), proporcje, FPS, kodek wideo, aktywna ścieżka audio, liczba ścieżek napisów, bitrate (Mbps) oraz zgubione klatki.
+- **Wybór ścieżki Audio i Napisów z pilota** — natywna nakładka na pełnym ekranie z obsługą napisów DVB Sub i Teletext oraz możliwością ich wyłączenia.
+- **Pełny przewodnik EPG** — Pojedynczy EPG, Multi EPG dla całego bukietu, szczegółowy opis z wyszukiwaniem podobnych audycji oraz zdalne dodawanie timerów nagrywania na dekoderze.
+- **Dopasowanie do Android TV** — baner Leanback, automatyczne pobieranie i cache pikon z dekodera (domyślnie `/usr/share/enigma2/picon`), obsługa HTTP Basic Auth, kolorowe menu bukietów i zamykanie przez `2× Wstecz`.
 
 ---
 
 ## Sterowanie pilotem
 
-### Lista kanałów
-| Przycisk pilota | Akcja |
-|---|---|
-| `▲` / `▼` | Poruszanie się po liście kanałów (z pominięciem markerów) |
-| `►` / `CH-` / `CH+` | Przewijanie listy o całą stronę |
-| `OK` | Uruchomienie wybranego kanału na pełnym ekranie |
-| `◄` | Otwarcie menu **Bukietów i Opcji** (tryb PIP, EPG, Odśwież, Ustawienia, Zamknij) |
-| `Wstecz` (2× pod rząd) | Zamknięcie aplikacji i zwolnienie LibVLC |
-| `EPG` / `GUIDE` | Otwarcie pełnego przewodnika EPG |
-| `MENU` | Przejście do ustawień IP, portów, ścieżki pikon i trybu PIP |
-
-### Pełny ekran (odtwarzacz)
-| Przycisk pilota | Akcja |
-|---|---|
-| `OK` | Pokaż / ukryj **Infobar** (EPG + pikona + parametry strumienia) |
-| `▲` / `▼` | Przełączanie kanałów (zapping) |
-| `◄` / `MENU` / `AUDIO` | Otwarcie nakładki wyboru **Audio i Napisów** (`◄`/`►` zmienia zakładkę) |
-| `SUB` / `CAPTIONS` | Otwarcie nakładki bezpośrednio na zakładce **Napisy** |
-| `►` / `EPG` | Otwarcie pełnego ekranu EPG z powrotem do wideo |
-| `Wstecz` | Zamknięcie nakładki lub powrót na listę kanałów |
+| Ekran | Klawisze pilota | Akcja |
+|---|---|---|
+| **Lista kanałów** | `▲` / `▼` | Zmiana kanału |
+| | `►` / `CH-` / `CH+` | Przewijanie stroną |
+| | `OK` | Odtwarzanie na pełnym ekranie |
+| | `◄` (pojedyncze) / **Czerwony** | Menu bukietów, zmiana trybu PIP i opcje |
+| | **`2× ◄` (szybko)** | Fokus na dolny pasek **`EPG` / `MENU` / `EXIT`** |
+| | **Zielony** | Odśwież listę bukietów z dekodera |
+| | **Żółty** | Podgląd PIP wybranego kanału |
+| | **Niebieski** / `MENU` | Ustawienia IP, logowania, pikon i PIP |
+| | `2× Wstecz` | Zamknięcie aplikacji |
+| **Pełny ekran** | `OK` | Pokaż / ukryj Infobar |
+| | `▲` / `▼` | Przełączanie kanałów |
+| | `◄` / `MENU` / `AUDIO` / `SUB` | Wybór ścieżki Audio i Napisów |
+| | `►` / `EPG` | Otwórz przewodnik EPG |
+| | `Wstecz` | Powrót do listy kanałów |
+| **Przewodnik EPG** | `▲` / `▼` | Nawigacja po audycjach / kanałach |
+| | `◄` / `►` | Przełączanie trybu (Pojedynczy / Multi / Info) |
+| | **`2× ◄` (szybko)** | Fokus na przyciski **`EPG` / `MENU` / `EXIT`** |
+| | `OK` | Opis audycji lub przełączenie kanału (w Multi EPG) |
+| | **Czerwony / Zielony / Żółty / Niebieski** | Info / Dodaj timer / Pojedynczy EPG / Multi EPG |
+| | `Wstecz` | Powrót |
 
 ---
 
 ## Instalacja
 
-1. Pobierz najnowszy plik `enigma2tv-1.2-armeabi-v7a_arm64-v8a-debug.apk` ze strony [Releases](https://github.com/Payti/EnigmaTVApp/releases).
-2. Zainstaluj paczkę na urządzeniu Android TV (np. przez pendrive / menedżer plików lub przez ADB: `adb install -r enigma2tv-1.2-armeabi-v7a_arm64-v8a-debug.apk`).
-3. Przy pierwszym uruchomieniu wpisz pilotem **adres IP dekodera Enigma2** (domyślne porty: OpenWebif `80`, strumień `8001`, pikony `/usr/share/enigma2/picon`) i wybierz **ZAPISZ**.
+Gotowe paczki `.apk` są dostępne w zakładce [**Releases**](https://github.com/Payti/EnigmaTVApp/releases).
 
-> [!IMPORTANT]
-> Paczka APK jest zoptymalizowana pod `armeabi-v7a` z kompresją bibliotek `.so` (~35–45 MB zamiast ponad 120 MB) i działa poprawnie również na 64-bitowych przystawkach Android TV (w tym Xiaomi Mi Box 4K).
+### Instalacja przez ADB (zalecane na Android TV 11+, np. Philips 65PUS8536)
 
----
+> [!NOTE]
+> Telewizory z Android TV 11+ często blokują instalację plików `.apk` bezpośrednio z pendrive'a. Instalacja po sieci przez **ADB** omija to ograniczenie i zachowuje dotychczasową konfigurację przy aktualizacji (`-r`).
 
-## Architektura
+1. Na TV włącz **Opcje programisty** (*Ustawienia Androida → Informacje → 7× OK na Kompilacja*) oraz **Debugowanie USB**, a następnie odczytaj adres IP telewizora.
+2. Na komputerze (Ubuntu/Linux):
 
-| Plik | Rola |
-|---|---|
-| `main.py` | Główna aplikacja Kivy: komunikacja z OpenWebif API, cache pikon (`PiconManager`), ekrany listy kanałów, pełnego EPG i konfiguracji TV |
-| `p4a_hook.py` | Hook dla `python-for-android`: konfiguruje manifest Leanback TV, wstrzykuje natywne przechwytywanie pilota w `PythonActivity.java`, generuje `TvVlcController.java` (LibVLC + Infobar + nakładka Audio/Napisy) i odchudza `build.gradle` |
-| `buildozer.spec` | Konfiguracja budowania APK, zależności (`libvlc-all:3.6.0`), grafiki `icon.png` i `presplash.png` |
-| `build_and_backup.sh` | Przenośny skrypt budujący APK (ze ścieżkami względnymi), weryfikujący składnię oraz tworzący wersjonowane backupy |
-| `p4a_patches/` | Łatka `build.py` (dla `python-for-android`) oraz `gradle.properties` (przydział RAM dla Gradle) |
-
----
-
-## Samodzielne budowanie (Ubuntu)
-
-### 1. Zależności systemowe
 ```bash
-sudo apt update
-sudo apt install -y git zip unzip openjdk-17-jdk python3-pip python3-venv \
-  autoconf automake libtool pkg-config zlib1g-dev libncurses-dev \
-  cmake libffi-dev libssl-dev patch build-essential
-```
-
-### 2. Klonowanie, środowisko `venv` i łatki
-```bash
-git clone https://github.com/Payti/EnigmaTVApp.git
-cd EnigmaTVApp
-
-mkdir -p "$HOME/.gradle"
-cp -a p4a_patches/gradle.properties "$HOME/.gradle/"
-
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip wheel setuptools
-pip install buildozer cython pillow
-```
-
-### 3. Pierwsza kompilacja i kolejne buildy
-```bash
-buildozer android update
-cp -a p4a_patches/build.py .buildozer/android/platform/python-for-android/pythonforandroid/build.py
-
-# Zbudowanie bieżącej wersji i utworzenie lokalnego backupu:
-./build_and_backup.sh
-
-# Lub z automatycznym podbiciem wersji i zapisem APK w wybranym katalogu:
-E_DRIVE="$HOME/Pulpit" ./build_and_backup.sh 1.3
+sudo apt update && sudo apt install -y adb
+adb connect <IP_TELEWIZORA>:5555
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk
+adb disconnect <IP_TELEWIZORA>:5555
 ```
 
 ---
 
-<details>
-<summary>Historia zmian (v1.0 – v1.2)</summary>
+## Budowanie ze źródeł
 
-- **v1.2**
-  - Natywna nakładka wyboru ścieżki **Audio i Napisów** z LibVLC podczas oglądania pełnoekranowego.
-  - Przeniesienie pikony na **lewą stronę** Infobaru oraz pełna naprawa odczytu rozdzielczości na każdym przełączonym kanale (`getFreshTracks` + `OnNewVideoLayoutListener` + stały `TextureView`).
-  - Normalizacja wysokości klatek DVB Full HD (`1088 → 1080`, `544 → 540`).
-  - Kolorowe rozróżnienie opcji aplikacji od bukietów w menu `◄`, pozycja **Zamknij aplikację** oraz zamykanie przez **2× Wstecz**.
-  - Przenośne ścieżki względne w `p4a_hook.py` i skrypcie `build_and_backup.sh`.
-- **v1.1**
-  - Wybór trybu PIP: **Auto (podąża za kursorem)** oraz **Enigma2 (ostatni oglądany)** z zapamiętywaniem ostatniego kanału i bukietu.
-  - Rozbudowany natywny Infobar z 2 wierszami EPG, paskiem postępu, zegarem, pikoną i diagnostyką strumienia LibVLC.
-- **v1.0**
-  - Wersja bazowa: pełna obsługa pilota Android TV przez `PythonActivity.dispatchKeyEvent`, sprzętowy LibVLC na `TextureView`, pobieranie bukietów, pikon i EPG z OpenWebif, baner Leanback oraz przezroczysty ekran startowy 16:9.
+Projekt buduje się automatycznie w **GitHub Actions** (`.github/workflows/build-apk.yml`) po wypchnięciu tagu `v*` lub ręcznym uruchomieniu workflow, a także lokalnie przez Buildozer:
 
-</details>
+```bash
+python3 -m py_compile main.py p4a_hook.py
+buildozer -v android debug
+```
+
+---
+
+## Licencja
+
+Projekt udostępniany na licencji [MIT](LICENSE).
 
 ---
 

@@ -1869,7 +1869,7 @@ def _write_tv_vlc_controller(dist_dir):
     java_dir.mkdir(parents=True, exist_ok=True)
     target = java_dir / "TvVlcController.java"
     target.write_text(TV_VLC_CONTROLLER_JAVA, encoding="utf-8")
-    print(f"[HOOK] Zapisano natywny odtwarzacz LibVLC v1.2 (fresh nativeGetTracks): {target}")
+    print(f"[HOOK] Zapisano natywny odtwarzacz LibVLC v1.3 (fresh nativeGetTracks): {target}")
 
 
 def _slim_gradle(dist_dir):

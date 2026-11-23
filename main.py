@@ -1,4 +1,6 @@
+import base64
 import datetime
+import html
 import io
 import json
 import os
@@ -7,6 +9,7 @@ import shutil
 import subprocess
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -24,7 +27,7 @@ from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image
 from kivy.uix.label import Label
 from kivy.uix.modalview import ModalView
-from kivy.uix.screenmanager import FadeTransition, Screen, ScreenManager
+from kivy.uix.screenmanager import NoTransition, Screen, ScreenManager
 from kivy.uix.scrollview import ScrollView
 from kivy.uix.widget import Widget
 from kivy.utils import escape_markup, platform
@@ -33,6 +36,8 @@ if platform not in ("android", "ios"):
     Window.size = (1280, 720)
     Window.minimum_width = 960
     Window.minimum_height = 540
+
+APP_VERSION = "1.3"
 
 DEFAULT_PICON_DIR = "/usr/share/enigma2/picon"
 PICON_PRESETS = [
@@ -47,12 +52,81 @@ PIG_MODES = [
     ("enigma2", "Enigma2 (ostatni oglądany)"),
 ]
 
+_CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x85\x88\x89\x8b-\x9f]")
+_HTML_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+
+
+def clean_epg_text(val, single_line=False):
+    """Dekoduje encje HTML (&quot;, &amp;, &#39;, &nbsp; itd.) i znaki sterujące DVB z OpenWebif."""
+    if val is None:
+        return ""
+    s = str(val)
+    for _ in range(3):
+        unesc = html.unescape(s)
+        if unesc == s:
+            break
+        s = unesc
+    s = _HTML_BR_RE.sub("\n", s)
+    s = s.replace("\r\n", "\n").replace("\r", "\n")
+    s = s.replace("\u008a", "\n").replace("\u0086", "").replace("\u0087", "")
+    s = s.replace("\u00a0", " ")
+    s = _CTRL_CHARS_RE.sub("", s)
+    if single_line:
+        return re.sub(r"\s+", " ", s).strip()
+    lines = [re.sub(r"[ \t]+", " ", ln).strip() for ln in s.split("\n")]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def clean_epg_event(ev):
+    if not isinstance(ev, dict):
+        return ev
+    for key in ("title", "sname", "genre"):
+        if key in ev and ev[key] is not None:
+            ev[key] = clean_epg_text(ev[key], single_line=True)
+    for key in ("shortdesc", "longdesc"):
+        if key in ev and ev[key] is not None:
+            ev[key] = clean_epg_text(ev[key], single_line=False)
+    return ev
+
+
+def clean_epg_events(events):
+    return [clean_epg_event(ev) for ev in (events or [])]
+
+
+def clean_services(services):
+    for b in (services or []):
+        if not isinstance(b, dict):
+            continue
+        if "servicename" in b and b["servicename"] is not None:
+            b["servicename"] = clean_epg_text(b["servicename"], single_line=True)
+        for sub in b.get("subservices", []) or []:
+            if isinstance(sub, dict) and "servicename" in sub and sub["servicename"] is not None:
+                sub["servicename"] = clean_epg_text(sub["servicename"], single_line=True)
+    return services or []
+
 
 def pig_mode_label(mode_key):
     for k, lbl in PIG_MODES:
         if k == mode_key:
             return lbl
     return PIG_MODES[0][1]
+
+
+def build_auth_headers(username="", password=""):
+    headers = {"User-Agent": "EnigmaTV-Python"}
+    u = (username or "").strip()
+    p = password or ""
+    if u or p:
+        token = base64.b64encode(f"{u}:{p}".encode("utf-8")).decode("ascii")
+        headers["Authorization"] = f"Basic {token}"
+    return headers
+
+
+def make_webif_request(url, cfg=None, username=None, password=None):
+    if username is None and password is None and cfg is not None:
+        username = cfg.get("username", "")
+        password = cfg.get("password", "")
+    return urllib.request.Request(url, headers=build_auth_headers(username or "", password or ""))
 
 
 # === PALETA KOLORÓW ENIGMA2 DARK SKIN ===
@@ -357,13 +431,13 @@ class AndroidLibVLCBackend:
             return
         try:
             self._ctrl.showInfobarRich(
-                str(data.get("ch_title", "")),
+                clean_epg_text(data.get("ch_title", ""), single_line=True),
                 str(data.get("now_time", "")),
-                str(data.get("now_title", "")),
+                clean_epg_text(data.get("now_title", ""), single_line=True),
                 int(data.get("now_begin", 0) or 0),
                 int(data.get("now_dur", 0) or 0),
                 str(data.get("next_time", "")),
-                str(data.get("next_title", "")),
+                clean_epg_text(data.get("next_title", ""), single_line=True),
                 str(data.get("next_dur_text", "")),
                 str(data.get("picon_path", "")),
                 str(data.get("source_tag", "ENIGMA2")),
@@ -538,10 +612,81 @@ class GradientProgressBar(Widget):
         self._bd_line.rectangle = (self.x, self.y, self.width, self.height)
 
 
+class LoadingSpinnerWidget(Widget):
+    """Płynnie obracające się kółko ładowania rysowane natywnie na Canvas Kivy."""
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._angle = 0.0
+        with self.canvas:
+            Color(0.22, 0.30, 0.40, 0.55)
+            self._track = Line(circle=(0, 0, dp(22), 0, 360), width=dp(3))
+            Color(*C_CYAN)
+            self._arc = Line(circle=(0, 0, dp(22), 0, 110), width=dp(3.4))
+            Color(*C_MINT)
+            self._arc2 = Line(circle=(0, 0, dp(14), 180, 260), width=dp(2.4))
+        self.bind(pos=self._redraw, size=self._redraw)
+
+    def advance(self, step=18.0):
+        self._angle = (self._angle + step) % 360.0
+        self._redraw()
+
+    def _redraw(self, *args):
+        cx, cy = self.center_x, self.center_y
+        r = max(dp(12), min(self.width, self.height) * 0.38)
+        self._track.circle = (cx, cy, r, 0, 360)
+        self._arc.circle = (cx, cy, r, self._angle, self._angle + 115.0)
+        self._arc2.circle = (cx, cy, r * 0.62, 360.0 - self._angle, 360.0 - self._angle + 90.0)
+
+
+class LoadingPanel(BoxLayout):
+    """Panel ładowania z obracającym się kółkiem i wędrującymi kropkami."""
+    def __init__(self, base_text="Pobieram EPG z dekodera", **kwargs):
+        super().__init__(orientation="vertical", spacing=dp(10), padding=(dp(20), dp(24)), **kwargs)
+        self._base_text = base_text
+        self._tick_count = 0
+        self._ev = None
+
+        self.add_widget(Widget(size_hint_y=1))
+        self.spinner = LoadingSpinnerWidget(size_hint=(None, None), size=(dp(58), dp(58)), pos_hint={"center_x": 0.5})
+        self.add_widget(self.spinner)
+        self.msg_lbl = make_label(f"{base_text} .", 16.5, C_CYAN, halign="center", bold=True,
+                                  size_hint_y=None, height=dp(28), shorten=False)
+        self.add_widget(self.msg_lbl)
+        self.sub_lbl = make_label("Proszę czekać — ładowanie przewodnika z OpenWebif", 12.5, C_MUTED,
+                                  halign="center", size_hint_y=None, height=dp(20), shorten=False)
+        self.add_widget(self.sub_lbl)
+        self.add_widget(Widget(size_hint_y=1))
+
+    def start(self, text=None):
+        if text:
+            self._base_text = text
+        self._tick_count = 0
+        self._update_dots()
+        if self._ev is None:
+            self._ev = Clock.schedule_interval(self._on_tick, 0.08)
+
+    def stop(self):
+        if self._ev is not None:
+            self._ev.cancel()
+            self._ev = None
+
+    def _update_dots(self):
+        phase = (self._tick_count // 4) % 4
+        dots = "." * phase if phase > 0 else ""
+        self.msg_lbl.text = f"{self._base_text} {dots}".rstrip()
+
+    def _on_tick(self, dt):
+        self._tick_count += 1
+        self.spinner.advance(16.0)
+        if self._tick_count % 4 == 0:
+            self._update_dots()
+
+
 class PillButton(ButtonBehavior, BoxLayout):
     def __init__(self, text, accent=C_CYAN, underline=False, font_size=14, **kwargs):
         super().__init__(**kwargs)
         self._underline = underline
+        self._default_accent = accent
         self.padding = (dp(10), dp(4))
         with self.canvas.before:
             self._bg_col = Color(0.07, 0.08, 0.11, 0.95 if not underline else 0.0)
@@ -553,6 +698,20 @@ class PillButton(ButtonBehavior, BoxLayout):
         self.bind(pos=self._redraw, size=self._redraw)
         self.lbl = make_label(text, font_size=font_size, halign="center", bold=not underline, shorten=False)
         self.add_widget(self.lbl)
+
+    def set_tv_focus(self, focused, danger=False):
+        if focused:
+            self._bg_col.rgba = (0.56, 0.13, 0.15, 0.98) if danger else C_FOCUS_BG
+            self._bd_col.rgba = C_ERROR if danger else C_CYAN
+            self._bd_line.width = 2.0
+            self._acc_col.rgba = C_ERROR if danger else C_CYAN
+            self.lbl.color = (1, 1, 1, 1)
+        else:
+            self._bg_col.rgba = (0.07, 0.08, 0.11, 0.95 if not self._underline else 0.0)
+            self._bd_col.rgba = (0.32, 0.36, 0.42, 0.7 if not self._underline else 0.0)
+            self._bd_line.width = 1.0
+            self._acc_col.rgba = self._default_accent
+            self.lbl.color = C_WHITE
 
     def _redraw(self, *args):
         self._bg_rect.pos, self._bg_rect.size = self.pos, self.size
@@ -568,31 +727,34 @@ class PillButton(ButtonBehavior, BoxLayout):
 
 class TVSettingField(ButtonBehavior, BoxLayout):
     """Pole konfiguracji przyjazne pilotowi Android TV z wyraźnym fokusem i wskaźnikiem edycji."""
-    def __init__(self, title, value, hint="", **kwargs):
-        super().__init__(orientation="vertical", padding=(dp(12), dp(5)), spacing=dp(1), **kwargs)
+    def __init__(self, title, value, hint="", empty_placeholder="", is_password=False, **kwargs):
+        super().__init__(orientation="vertical", padding=(dp(10), dp(3)), spacing=dp(0), **kwargs)
         self._value = value
+        self._empty_placeholder = empty_placeholder
+        self._is_password = is_password
         self._focused = False
         self._editing = False
         with self.canvas.before:
             self._bg_col = Color(0.07, 0.09, 0.13, 0.95)
-            self._bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(8)])
+            self._bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(7)])
             self._bd_col = Color(0.28, 0.33, 0.40, 0.75)
-            self._bd_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(8)), width=1.1)
+            self._bd_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(7)), width=1.0)
         self.bind(pos=self._redraw, size=self._redraw)
 
-        top = BoxLayout(size_hint_y=None, height=dp(16))
-        self.title_lbl = make_label(title, 12, C_GRAY, bold=True)
-        self.hint_lbl = make_label(hint, 11, C_MUTED, halign="right", size_hint_x=None, width=dp(135))
+        top = BoxLayout(size_hint_y=None, height=dp(14))
+        self.title_lbl = make_label(title, 11, C_GRAY, bold=True)
+        self.hint_lbl = make_label(hint, 10, C_MUTED, halign="right", size_hint_x=None, width=dp(145))
         top.add_widget(self.title_lbl)
         top.add_widget(self.hint_lbl)
         self.add_widget(top)
 
-        self.val_lbl = make_label(value, 16, C_WHITE, bold=True)
+        self.val_lbl = make_label("", 14.5, C_WHITE, bold=True)
         self.add_widget(self.val_lbl)
+        self._refresh_visual()
 
     def _redraw(self, *args):
         self._bg_rect.pos, self._bg_rect.size = self.pos, self.size
-        self._bd_line.rounded_rectangle = (self.x, self.y, self.width, self.height, dp(8))
+        self._bd_line.rounded_rectangle = (self.x, self.y, self.width, self.height, dp(7))
 
     @property
     def text(self):
@@ -608,43 +770,127 @@ class TVSettingField(ButtonBehavior, BoxLayout):
         self._editing = editing
         self._refresh_visual()
 
+    def _display_text(self):
+        if self._editing:
+            return self._value + "_"
+        if not self._value:
+            return self._empty_placeholder
+        if self._is_password:
+            return "•" * len(self._value)
+        return self._value
+
     def _refresh_visual(self):
+        shown = self._display_text()
+        is_placeholder = (not self._editing and not self._value and bool(self._empty_placeholder))
         if self._focused:
             self._bg_col.rgba = (0.11, 0.27, 0.44, 0.98)
             self._bd_col.rgba = C_CYAN
             self._bd_line.width = 1.9
             self.title_lbl.color = C_CYAN
-            self.val_lbl.color = (1, 1, 1, 1)
-            self.val_lbl.text = self._value + ("_" if self._editing else "")
+            self.val_lbl.color = C_GRAY if is_placeholder else (1, 1, 1, 1)
+            self.val_lbl.text = shown
         elif self._editing:
             self._bg_col.rgba = (0.07, 0.16, 0.24, 0.96)
             self._bd_col.rgba = C_MINT
             self._bd_line.width = 1.6
             self.title_lbl.color = C_MINT
             self.val_lbl.color = (1, 1, 1, 1)
-            self.val_lbl.text = self._value + "_"
+            self.val_lbl.text = shown
         else:
             self._bg_col.rgba = (0.065, 0.082, 0.115, 0.95)
             self._bd_col.rgba = (0.26, 0.31, 0.38, 0.65)
             self._bd_line.width = 1.0
             self.title_lbl.color = C_GRAY
-            self.val_lbl.color = C_WHITE
-            self.val_lbl.text = self._value
+            self.val_lbl.color = C_MUTED if is_placeholder else C_WHITE
+            self.val_lbl.text = shown
+
+
+class TVCheckboxField(ButtonBehavior, BoxLayout):
+    """Checkbox przyjazny pilotowi Android TV."""
+    def __init__(self, title, checked=False, hint="[OK / ◄ ►] przełącz", **kwargs):
+        super().__init__(orientation="horizontal", padding=(dp(10), dp(4)), spacing=dp(10), **kwargs)
+        self._checked = bool(checked)
+        self._focused = False
+        with self.canvas.before:
+            self._bg_col = Color(0.065, 0.082, 0.115, 0.95)
+            self._bg_rect = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(7)])
+            self._bd_col = Color(0.26, 0.31, 0.38, 0.65)
+            self._bd_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(7)), width=1.0)
+        self.bind(pos=self._redraw, size=self._redraw)
+
+        self.box_lbl = make_label("[  ]", 15, C_MUTED, halign="center", bold=True,
+                                  size_hint_x=None, width=dp(34), shorten=False)
+        self.title_lbl = make_label(title, 13, C_WHITE, bold=True)
+        self.state_lbl = make_label("", 11.5, C_MUTED, halign="right", bold=True,
+                                    size_hint_x=None, width=dp(135), shorten=False)
+        self._hint = hint
+        self.add_widget(self.box_lbl)
+        self.add_widget(self.title_lbl)
+        self.add_widget(self.state_lbl)
+        self._refresh_visual()
+
+    def _redraw(self, *args):
+        self._bg_rect.pos, self._bg_rect.size = self.pos, self.size
+        self._bd_line.rounded_rectangle = (self.x, self.y, self.width, self.height, dp(7))
+
+    @property
+    def checked(self):
+        return self._checked
+
+    @checked.setter
+    def checked(self, val):
+        self._checked = bool(val)
+        self._refresh_visual()
+
+    def toggle(self):
+        self._checked = not self._checked
+        self._refresh_visual()
+
+    def set_state(self, focused, editing=False):
+        self._focused = focused
+        self._refresh_visual()
+
+    def _refresh_visual(self):
+        if self._checked:
+            self.box_lbl.text = "[✓]"
+            self.box_lbl.color = C_MINT
+            self.state_lbl.text = "WŁ (login:hasło@)"
+            self.state_lbl.color = C_MINT
+        else:
+            self.box_lbl.text = "[  ]"
+            self.box_lbl.color = C_MUTED
+            self.state_lbl.text = f"WYŁ  •  {self._hint}" if self._focused else "WYŁ (domyślnie)"
+            self.state_lbl.color = C_GRAY if self._focused else C_MUTED
+
+        if self._focused:
+            self._bg_col.rgba = (0.11, 0.27, 0.44, 0.98)
+            self._bd_col.rgba = C_CYAN
+            self._bd_line.width = 1.9
+            self.title_lbl.color = (1, 1, 1, 1)
+        else:
+            self._bg_col.rgba = (0.065, 0.082, 0.115, 0.95)
+            self._bd_col.rgba = (0.26, 0.31, 0.38, 0.65)
+            self._bd_line.width = 1.0
+            self.title_lbl.color = C_WHITE
 
 
 class PiconManager:
-    """Asynchroniczne pobieranie i cache'owanie pikon z /usr/share/enigma2/picon."""
+    """Asynchroniczne pobieranie i cache'owanie pikon z /usr/share/enigma2/picon (z obsługą Basic Auth)."""
     def __init__(self, cache_dir):
         self.cache_dir = cache_dir
         os.makedirs(self.cache_dir, exist_ok=True)
         self.executor = ThreadPoolExecutor(max_workers=6)
         self.textures, self.file_paths, self.missing, self.pending = {}, {}, set(), {}
         self.ip, self.web_port, self.picon_dir = "", "80", DEFAULT_PICON_DIR
+        self.username, self.password = "", ""
 
-    def configure(self, ip, web_port, picon_dir):
+    def configure(self, ip, web_port, picon_dir, username="", password=""):
         pdir = (picon_dir or DEFAULT_PICON_DIR).rstrip("/")
-        if (ip, web_port, pdir) != (self.ip, self.web_port, self.picon_dir):
+        u = (username or "").strip()
+        pw = password or ""
+        if (ip, web_port, pdir, u, pw) != (self.ip, self.web_port, self.picon_dir, self.username, self.password):
             self.ip, self.web_port, self.picon_dir = ip, web_port, pdir
+            self.username, self.password = u, pw
             self.missing.clear()
 
     @staticmethod
@@ -717,9 +963,10 @@ class PiconManager:
                 if self.picon_dir != DEFAULT_PICON_DIR:
                     p2 = urllib.parse.quote(f"{DEFAULT_PICON_DIR}/{c}.png", safe="/")
                     urls.append(f"http://{self.ip}:{self.web_port}/file?file={p2}")
+            hdrs = build_auth_headers(self.username, self.password)
             for url in urls:
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+                    req = urllib.request.Request(url, headers=hdrs)
                     with urllib.request.urlopen(req, timeout=2.5) as resp:
                         data = resp.read()
                         if data and data[:8] == b"\x89PNG\r\n\x1a\n":
@@ -806,7 +1053,7 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
         self.bar_wrap.width, self.bar_wrap.opacity = 0, 0
         self.progress.set_progress(0.0, visible=False)
         self.picon_img.width, self.picon_img.opacity = 0, 0
-        t = escape_markup(title.strip())
+        t = escape_markup(clean_epg_text(title, single_line=True))
         if not t.startswith("---"):
             t = f"--- {t} ---"
         self.text_lbl.text = f"[color=#66C7F5]»[/color]  [color=#B8C6D6][b]{t}[/b][/color]"
@@ -814,7 +1061,8 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
 
     def bind_channel(self, item, selected, epg_event, picon_manager, is_live=False):
         self.is_marker = False
-        sref, name = item.get("sref", ""), item.get("name", "")
+        sref = item.get("sref", "")
+        name = clean_epg_text(item.get("name", ""), single_line=True)
         self.current_sref = sref
         self.num_lbl.width, self.bar_wrap.width, self.bar_wrap.opacity, self.picon_img.width = dp(42), dp(42), 1, dp(48)
         self.num_lbl.text = str(item.get("num", 0))
@@ -822,7 +1070,7 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
 
         epg_title = ""
         if epg_event and epg_event.get("title"):
-            epg_title = epg_event.get("title", "")
+            epg_title = clean_epg_text(epg_event.get("title", ""), single_line=True)
             self.progress.set_progress(epg_event.get("_progress", 0.0), visible=True)
         else:
             self.progress.set_progress(0.0, visible=False)
@@ -890,8 +1138,8 @@ class BouquetModal(ModalView):
             background_color=(0, 0, 0, 0.55),
             **kwargs,
         )
+        self.opened_at = time.monotonic()
         self.bouquets = bouquets
-        # (tekst, callback, bg_idle, border_idle, accent_col, text_idle, bg_focus)
         self.actions = [
             (
                 "▸  Podgląd PIP (bieżący kanał)", on_pig,
@@ -914,7 +1162,7 @@ class BouquetModal(ModalView):
                 (0.68, 0.56, 0.98, 1), (0.85, 0.79, 1.00, 1), (0.24, 0.18, 0.44, 0.98),
             ),
             (
-                "▸  Ustawienia IP, pikon i PIP", on_settings,
+                "▸  Ustawienia IP, logowania, pikon i PIP", on_settings,
                 (0.19, 0.11, 0.05, 0.94), (0.72, 0.44, 0.18, 0.70),
                 (0.96, 0.60, 0.24, 1), (1.00, 0.82, 0.60, 1), (0.38, 0.21, 0.08, 0.98),
             ),
@@ -939,19 +1187,18 @@ class BouquetModal(ModalView):
 
         for idx, b in enumerate(bouquets):
             cnt = sum(1 for c in b.get("subservices", []) if not c.get("servicereference", "").startswith("1:64:"))
-            row = self._make_row(f"{b.get('servicename', 'Bukiet')}   ({cnt})", idx)
+            bname = clean_epg_text(b.get("servicename", "Bukiet"), single_line=True)
+            row = self._make_row(f"{bname}   ({cnt})", idx)
             box.add_widget(row)
             self.rows.append(row)
             self.row_styles.append(None)
 
-        # Wizualny separator oddzielający bukiety od opcji aplikacji
         sep_lbl = make_label("──  OPCJE I USTAWIENIA APLIKACJI  ──", 12, C_CYAN, halign="center",
                              bold=True, size_hint_y=None, height=dp(24))
         box.add_widget(sep_lbl)
 
         for a_idx, spec in enumerate(self.actions):
-            label = spec[0]
-            row = self._make_row(label, len(bouquets) + a_idx)
+            row = self._make_row(spec[0], len(bouquets) + a_idx)
             box.add_widget(row)
             self.rows.append(row)
             self.row_styles.append(spec[2:])
@@ -1026,64 +1273,124 @@ class BouquetModal(ModalView):
 # EKRANY APLIKACJI
 # =============================================================================
 class SettingsScreen(Screen):
-    """Konfiguracja z pełną obsługą pilota Android TV, klawiaturą numeryczną i nastawą trybu PIP."""
-    PAD_LAYOUT = [
-        ["1", "2", "3"],
-        ["4", "5", "6"],
-        ["7", "8", "9"],
-        [".", "0", "⌫"],
-        ["WYCZYŚĆ", "GOTOWE", "ZAPISZ"],
-    ]
+    """Konfiguracja v1.3: logowanie OpenWebif, checkbox autoryzacji strumienia oraz przełączana klawiatura TV."""
+    KB_MODES = ["123", "abc", "ABC", "#@!"]
+    KB_LAYOUTS = {
+        "123": [
+            ["1", "2", "3"],
+            ["4", "5", "6"],
+            ["7", "8", "9"],
+            [".", "0", "⌫"],
+        ],
+        "abc": [
+            ["a", "b", "c", "d", "e", "f", "g", "h"],
+            ["i", "j", "k", "l", "m", "n", "o", "p"],
+            ["q", "r", "s", "t", "u", "v", "w", "x"],
+            ["y", "z", "/", "_", "-", ".", "SPC", "⌫"],
+        ],
+        "ABC": [
+            ["A", "B", "C", "D", "E", "F", "G", "H"],
+            ["I", "J", "K", "L", "M", "N", "O", "P"],
+            ["Q", "R", "S", "T", "U", "V", "W", "X"],
+            ["Y", "Z", "/", "_", "-", ".", "SPC", "⌫"],
+        ],
+        "#@!": [
+            ["0", "1", "2", "3", "4", "5", "6", "7"],
+            ["8", "9", "!", "@", "#", "$", "%", "^"],
+            ["&", "*", "(", ")", "-", "_", "=", "+"],
+            ["/", "\\", ":", ";", ".", ",", "?", "⌫"],
+        ],
+    }
+    KB_ACTIONS = ["WYCZYŚĆ", "GOTOWE", "ZAPISZ"]
+
+    # Indeksy pól w lewej kolumnie:
+    # 0=IP, 1=Użytkownik, 2=Hasło, 3=Checkbox strumień 8001, 4=Port Web, 5=Port Stream, 6=Picon, 7=PIP
+    # Przyciski dolne: 8=ZAPISZ, 9=ANULUJ, 10=ZAMKNIJ
+    EDITABLE_FIELDS = (0, 1, 2, 4, 5, 6)
+    NUMERIC_FIELDS = (0, 4, 5)
+    FIELD_NAMES = {
+        0: "Adres IP dekodera",
+        1: "Użytkownik OpenWebif",
+        2: "Hasło OpenWebif",
+        4: "Port OpenWebif",
+        5: "Port strumienia",
+        6: "Ścieżka pikon w dekoderze",
+    }
 
     def __init__(self, video_backend, **kwargs):
         super().__init__(**kwargs)
         self.video_backend = video_backend
         self.zone = "fields"
-        self.field_idx = 0         # 0=IP, 1=WebPort, 2=StreamPort, 3=Picon, 4=Tryb PIP, 5=Zapisz, 6=Anuluj
-        self.active_edit_idx = 0   # które pole (0..2) edytuje klawiatura numeryczna
-        self.pad_r, self.pad_c = 0, 0
+        self.field_idx = 0
+        self.active_edit_idx = 0
+        self.kb_mode = "123"
+        self.pad_r, self.pad_c = 1, 0
         self.picon_options = list(PICON_PRESETS)
         self.pig_mode_key = "follow"
+        self.pad_rows_btns = []
+        self.pad_rows_keys = []
 
-        outer = BoxLayout(orientation="vertical", padding=(dp(24), dp(16)))
+        outer = BoxLayout(orientation="vertical", padding=(dp(18), dp(10)))
         card = EnigmaFrame(
             bg=(0.032, 0.042, 0.064, 1), border=C_CYAN, radius=14, lw=1.3,
-            orientation="vertical", padding=(dp(16), dp(12)), spacing=dp(8),
+            orientation="vertical", padding=(dp(14), dp(9)), spacing=dp(6),
         )
 
-        hdr = BoxLayout(size_hint_y=None, height=dp(26), spacing=dp(12))
-        hdr.add_widget(make_label("Konfiguracja dekodera Enigma2  (v1.2)", 18, C_CYAN, bold=True, size_hint_x=0.55))
+        hdr = BoxLayout(size_hint_y=None, height=dp(24), spacing=dp(12))
+        hdr.add_widget(make_label(f"Konfiguracja dekodera Enigma2  (v{APP_VERSION})", 17.5, C_CYAN, bold=True, size_hint_x=0.52))
         hdr.add_widget(make_label(
-            "Pilot: Góra/Dół = pole  •  OK/Prawo = edytuj  •  Wstecz = powrót",
-            12, C_GRAY, halign="right", size_hint_x=0.45,
+            "Pilot: ▲▼ pole  •  OK/► edytuj  •  Wstecz = powrót",
+            11.5, C_GRAY, halign="right", size_hint_x=0.48,
         ))
         card.add_widget(hdr)
 
-        body = BoxLayout(orientation="horizontal", spacing=dp(14))
+        body = BoxLayout(orientation="horizontal", spacing=dp(12))
 
         # === LEWA KOLUMNA: POLA KONFIGURACJI ===
-        left_col = BoxLayout(orientation="vertical", size_hint_x=0.56, spacing=dp(6))
+        left_col = BoxLayout(orientation="vertical", size_hint_x=0.51, spacing=dp(4))
 
-        self.ip_field = TVSettingField("Adres IP dekodera", "192.168.1.50", "[OK / Prawo] wpisz")
-        self.web_field = TVSettingField("Port OpenWebif (domyślnie 80)", "80", "[OK / Prawo] wpisz")
-        self.stream_field = TVSettingField("Port strumienia (domyślnie 8001)", "8001", "[OK / Prawo] wpisz")
-        self.picon_field = TVSettingField("Ścieżka pikon w dekoderze", DEFAULT_PICON_DIR, "[OK / ◄ ►] zmień")
+        self.ip_field = TVSettingField("Adres IP dekodera", "192.168.1.50", "[OK / ►] wpisz")
+        self.user_field = TVSettingField(
+            "Użytkownik OpenWebif (opcjonalny)", "", "[OK / ►] wpisz",
+            empty_placeholder="(brak — bez logowania)",
+        )
+        self.pass_field = TVSettingField(
+            "Hasło OpenWebif (opcjonalne)", "", "[OK / ►] wpisz",
+            empty_placeholder="(brak — bez hasła)", is_password=True,
+        )
+        self.stream_auth_field = TVCheckboxField(
+            "Autoryzacja strumienia (port 8001)", checked=False, size_hint_y=0.76
+        )
+        self.web_field = TVSettingField("Port OpenWebif (domyślnie 80)", "80", "[OK / ►] wpisz")
+        self.stream_field = TVSettingField("Port strumienia (domyślnie 8001)", "8001", "[OK / ►] wpisz")
+        self.picon_field = TVSettingField(
+            "Ścieżka pikon w dekoderze", DEFAULT_PICON_DIR, "[OK/►] edytuj  [◄] preset"
+        )
         self.pig_field = TVSettingField("Tryb podglądu PIP na liście", pig_mode_label("follow"), "[OK / ◄ ►] zmień")
 
-        self.fields = [self.ip_field, self.web_field, self.stream_field, self.picon_field, self.pig_field]
+        self.fields = [
+            self.ip_field,
+            self.user_field,
+            self.pass_field,
+            self.stream_auth_field,
+            self.web_field,
+            self.stream_field,
+            self.picon_field,
+            self.pig_field,
+        ]
         for idx, fld in enumerate(self.fields):
             fld.bind(on_release=lambda *a, i=idx: self._on_field_click(i))
             left_col.add_widget(fld)
 
-        self.status_lbl = make_label("", 12.5, C_ERROR, size_hint_y=None, height=dp(18))
+        self.status_lbl = make_label("", 12, C_ERROR, size_hint_y=None, height=dp(16))
         left_col.add_widget(self.status_lbl)
 
-        btn_row = BoxLayout(spacing=dp(8), size_hint_y=None, height=dp(40))
-        self.save_btn = PillButton(text="ZAPISZ", accent=C_MINT, font_size=14)
+        btn_row = BoxLayout(spacing=dp(8), size_hint_y=None, height=dp(36))
+        self.save_btn = PillButton(text="ZAPISZ", accent=C_MINT, font_size=13.5)
         self.save_btn.bind(on_release=self.save_and_connect)
-        self.cancel_btn = PillButton(text="ANULUJ", accent=C_MUTED, font_size=14)
+        self.cancel_btn = PillButton(text="ANULUJ", accent=C_MUTED, font_size=13.5)
         self.cancel_btn.bind(on_release=self.go_back)
-        self.exit_btn = PillButton(text="ZAMKNIJ", accent=C_ERROR, font_size=14)
+        self.exit_btn = PillButton(text="ZAMKNIJ", accent=C_ERROR, font_size=13.5)
         self.exit_btn.bind(on_release=lambda *a: App.get_running_app().exit_application())
         btn_row.add_widget(self.save_btn)
         btn_row.add_widget(self.cancel_btn)
@@ -1091,33 +1398,79 @@ class SettingsScreen(Screen):
         left_col.add_widget(btn_row)
         body.add_widget(left_col)
 
-        # === PRAWA KOLUMNA: KLAWIATURA NUMERYCZNA TV ===
+        # === PRAWA KOLUMNA: PRZEŁĄCZANA KLAWIATURA TV ===
         right_col = EnigmaFrame(
             bg=(0.022, 0.030, 0.048, 0.96), border=C_BORDER_SUB, radius=10,
-            orientation="vertical", size_hint_x=0.44, padding=dp(10), spacing=dp(7),
+            orientation="vertical", size_hint_x=0.49, padding=dp(9), spacing=dp(6),
         )
-        self.pad_title = make_label("Edycja: Adres IP dekodera", 13.5, C_MINT, halign="center",
-                                    bold=True, size_hint_y=None, height=dp(22))
+        self.pad_title = make_label("Edycja: Adres IP dekodera", 13, C_MINT, halign="center",
+                                    bold=True, size_hint_y=None, height=dp(20))
         right_col.add_widget(self.pad_title)
 
-        grid = GridLayout(cols=3, spacing=dp(7))
-        self.pad_buttons = []
-        for r, row_keys in enumerate(self.PAD_LAYOUT):
-            row_btns = []
-            for c, label in enumerate(row_keys):
-                fs = 13.5 if len(label) > 2 else 19
-                acc = C_MINT if label == "ZAPISZ" else (C_CYAN if label == "GOTOWE" else C_BORDER)
-                btn = PillButton(text=label, accent=acc, font_size=fs)
-                btn.bind(on_release=lambda *a, rr=r, cc=c: self._on_pad_click(rr, cc))
-                grid.add_widget(btn)
-                row_btns.append(btn)
-            self.pad_buttons.append(row_btns)
-        right_col.add_widget(grid)
-        body.add_widget(right_col)
+        # Rząd 0: wybór trybu klawiatury (123 / abc / ABC / #@!)
+        self.mode_bar = BoxLayout(orientation="horizontal", spacing=dp(5), size_hint_y=None, height=dp(34))
+        self.mode_btns = []
+        for idx, m_lbl in enumerate(self.KB_MODES):
+            b = PillButton(text=m_lbl, accent=C_CYAN, font_size=13.5)
+            b.padding = (dp(4), dp(2))
+            b.bind(on_release=lambda *a, c=idx: self._on_pad_click(0, c))
+            self.mode_bar.add_widget(b)
+            self.mode_btns.append(b)
+        right_col.add_widget(self.mode_bar)
 
+        # Środek: dynamiczna siatka klawiszy (wiersze 1..4)
+        self.keys_holder = BoxLayout(orientation="vertical")
+        right_col.add_widget(self.keys_holder)
+
+        # Dół (wiersz 5): zmniejszony rząd akcji WYCZYŚĆ / GOTOWE / ZAPISZ
+        self.action_bar = BoxLayout(orientation="horizontal", spacing=dp(6), size_hint_y=None, height=dp(34))
+        self.action_btns = []
+        for idx, a_lbl in enumerate(self.KB_ACTIONS):
+            acc = C_MINT if a_lbl == "ZAPISZ" else (C_CYAN if a_lbl == "GOTOWE" else C_ERROR)
+            b = PillButton(text=a_lbl, accent=acc, font_size=12.5)
+            b.padding = (dp(4), dp(2))
+            b.bind(on_release=lambda *a, c=idx: self._on_pad_click(5, c))
+            self.action_bar.add_widget(b)
+            self.action_btns.append(b)
+        right_col.add_widget(self.action_bar)
+
+        body.add_widget(right_col)
         card.add_widget(body)
         outer.add_widget(card)
         self.add_widget(outer)
+
+        self._rebuild_keyboard("123")
+
+    def _rebuild_keyboard(self, mode):
+        self.kb_mode = mode if mode in self.KB_LAYOUTS else "123"
+        layout = self.KB_LAYOUTS[self.kb_mode]
+        cols = len(layout[0])
+        self.keys_holder.clear_widgets()
+        grid = GridLayout(cols=cols, spacing=dp(5 if cols > 4 else 7))
+
+        mid_btns = []
+        for r_off, row_keys in enumerate(layout):
+            r_idx = r_off + 1
+            row_btns = []
+            for c_idx, key_lbl in enumerate(row_keys):
+                if cols <= 3:
+                    fs = 19
+                elif len(key_lbl) > 1:
+                    fs = 12
+                else:
+                    fs = 15.5
+                btn = PillButton(text=key_lbl, accent=(0, 0, 0, 0), font_size=fs)
+                btn.padding = (dp(2), dp(2))
+                btn.bind(on_release=lambda *a, rr=r_idx, cc=c_idx: self._on_pad_click(rr, cc))
+                grid.add_widget(btn)
+                row_btns.append(btn)
+            mid_btns.append(row_btns)
+        self.keys_holder.add_widget(grid)
+
+        self.pad_rows_btns = [self.mode_btns] + mid_btns + [self.action_btns]
+        self.pad_rows_keys = [list(self.KB_MODES)] + [list(r) for r in layout] + [list(self.KB_ACTIONS)]
+        self.pad_r = max(0, min(self.pad_r, len(self.pad_rows_btns) - 1))
+        self.pad_c = max(0, min(self.pad_c, len(self.pad_rows_btns[self.pad_r]) - 1))
 
     def _has_saved_ip(self):
         app = App.get_running_app()
@@ -1127,6 +1480,9 @@ class SettingsScreen(Screen):
         self.video_backend.hide()
         cfg = App.get_running_app().config_data
         self.ip_field.text = cfg.get("ip", "192.168.1.50")
+        self.user_field.text = cfg.get("username", "")
+        self.pass_field.text = cfg.get("password", "")
+        self.stream_auth_field.checked = bool(cfg.get("stream_auth", False))
         self.web_field.text = str(cfg.get("web_port", "80"))
         self.stream_field.text = str(cfg.get("stream_port", "8001"))
 
@@ -1144,48 +1500,63 @@ class SettingsScreen(Screen):
         self.zone = "fields"
         self.field_idx = 0
         self.active_edit_idx = 0
-        self.pad_r, self.pad_c = 0, 0
+        self._rebuild_keyboard("123")
+        self.pad_r, self.pad_c = 1, 0
         has_ip = self._has_saved_ip()
         self.cancel_btn.disabled = not has_ip
         self.cancel_btn.opacity = 1.0 if has_ip else 0.35
         self._refresh_focus()
 
+    def _select_default_kb_for_field(self, idx):
+        desired = "123" if idx in self.NUMERIC_FIELDS else "abc"
+        if self.kb_mode != desired:
+            self._rebuild_keyboard(desired)
+
     def _refresh_focus(self):
-        names = ["Adres IP dekodera", "Port OpenWebif", "Port strumienia"]
-        self.pad_title.text = f"Edycja: {names[self.active_edit_idx]}"
+        fname = self.FIELD_NAMES.get(self.active_edit_idx, "Pole tekstowe")
+        self.pad_title.text = f"Edycja: {fname}   [{self.kb_mode}]"
 
         for idx, fld in enumerate(self.fields):
             fld.set_state(
                 focused=(self.zone == "fields" and self.field_idx == idx),
-                editing=(idx == self.active_edit_idx and idx in (0, 1, 2)),
+                editing=(self.zone == "pad" and idx == self.active_edit_idx and idx in self.EDITABLE_FIELDS),
             )
 
         for idx, btn, base_bg, foc_bg, acc in (
-            (5, self.save_btn, (0.08, 0.26, 0.20, 0.95), (0.14, 0.44, 0.34, 0.98), C_MINT),
-            (6, self.cancel_btn, (0.08, 0.09, 0.12, 0.95), C_FOCUS_BG, C_MUTED),
-            (7, self.exit_btn, (0.25, 0.07, 0.08, 0.95), (0.56, 0.13, 0.15, 0.98), C_ERROR),
+            (8, self.save_btn, (0.08, 0.26, 0.20, 0.95), (0.14, 0.44, 0.34, 0.98), C_MINT),
+            (9, self.cancel_btn, (0.08, 0.09, 0.12, 0.95), C_FOCUS_BG, C_MUTED),
+            (10, self.exit_btn, (0.25, 0.07, 0.08, 0.95), (0.56, 0.13, 0.15, 0.98), C_ERROR),
         ):
             focused = (self.zone == "fields" and self.field_idx == idx)
             btn._bg_col.rgba = foc_bg if focused else base_bg
-            btn._bd_col.rgba = (acc if idx == 7 else C_CYAN) if focused else (0.30, 0.35, 0.42, 0.7)
+            btn._bd_col.rgba = (acc if idx == 10 else C_CYAN) if focused else (0.30, 0.35, 0.42, 0.7)
             btn._bd_line.width = 2.0 if focused else 1.0
-            btn._acc_col.rgba = (acc if idx == 7 else C_CYAN) if focused else acc
+            btn._acc_col.rgba = (acc if idx == 10 else C_CYAN) if focused else acc
             btn.lbl.color = (1, 1, 1, 1) if focused else C_WHITE
 
-        for r, row_btns in enumerate(self.pad_buttons):
+        for r, row_btns in enumerate(self.pad_rows_btns):
             for c, btn in enumerate(row_btns):
-                key_lbl = self.PAD_LAYOUT[r][c]
+                key_lbl = self.pad_rows_keys[r][c]
                 focused = (self.zone == "pad" and self.pad_r == r and self.pad_c == c)
                 if focused:
                     btn._bg_col.rgba = C_FOCUS_BG
                     btn._bd_col.rgba = C_CYAN
                     btn._bd_line.width = 2.0
                     btn.lbl.color = (1, 1, 1, 1)
+                elif r == 0:
+                    active_mode = (key_lbl == self.kb_mode)
+                    btn._bg_col.rgba = (0.09, 0.30, 0.24, 0.96) if active_mode else (0.065, 0.082, 0.115, 0.95)
+                    btn._bd_col.rgba = C_MINT if active_mode else (0.28, 0.33, 0.40, 0.65)
+                    btn._bd_line.width = 1.5 if active_mode else 1.0
+                    btn._acc_col.rgba = C_MINT if active_mode else (0, 0, 0, 0)
+                    btn.lbl.color = (1, 1, 1, 1) if active_mode else C_GRAY
                 else:
                     if key_lbl == "ZAPISZ":
                         btn._bg_col.rgba = (0.09, 0.28, 0.22, 0.95)
                     elif key_lbl == "WYCZYŚĆ":
                         btn._bg_col.rgba = (0.22, 0.09, 0.11, 0.95)
+                    elif key_lbl in ("⌫", "SPC"):
+                        btn._bg_col.rgba = (0.12, 0.14, 0.20, 0.95)
                     else:
                         btn._bg_col.rgba = (0.075, 0.095, 0.135, 0.95)
                     btn._bd_col.rgba = (0.28, 0.33, 0.40, 0.65)
@@ -1204,112 +1575,140 @@ class SettingsScreen(Screen):
         self.pig_field.text = pig_mode_label(self.pig_mode_key)
 
     def _apply_char(self, ch):
+        if self.active_edit_idx not in self.EDITABLE_FIELDS:
+            return
         fld = self.fields[self.active_edit_idx]
         cur = fld.text
+
+        if ch in self.KB_MODES:
+            self._rebuild_keyboard(ch)
+            self.pad_r = 0
+            self.pad_c = self.KB_MODES.index(ch)
+            self._refresh_focus()
+            return
         if ch == "⌫":
             fld.text = cur[:-1]
         elif ch == "WYCZYŚĆ":
             fld.text = ""
         elif ch == "GOTOWE":
             self.zone = "fields"
-            self.field_idx = 5
+            self.field_idx = self.active_edit_idx
         elif ch == "ZAPISZ":
             self.save_and_connect()
             return
-        elif ch == ".":
-            if self.active_edit_idx == 0 and len(cur) < 15:
-                fld.text = cur + "."
-        elif ch.isdigit():
-            limit = 15 if self.active_edit_idx == 0 else 5
-            if len(cur) < limit:
-                fld.text = cur + ch
+        else:
+            out_ch = " " if ch == "SPC" else ch
+            if self.active_edit_idx == 0:
+                if (out_ch.isdigit() or out_ch == ".") and len(cur) < 15:
+                    fld.text = cur + out_ch
+            elif self.active_edit_idx in (4, 5):
+                if out_ch.isdigit() and len(cur) < 5:
+                    fld.text = cur + out_ch
+            else:
+                if len(cur) < 96:
+                    fld.text = cur + out_ch
         self.status_lbl.text = ""
+        self._refresh_focus()
+
+    def _enter_pad_for_field(self, idx):
+        self.active_edit_idx = idx
+        self._select_default_kb_for_field(idx)
+        self.zone = "pad"
+        self.pad_r, self.pad_c = 1, 0
         self._refresh_focus()
 
     def _on_field_click(self, idx):
         self.field_idx = idx
-        if idx in (0, 1, 2):
-            self.active_edit_idx = idx
-            self.zone = "pad"
-        elif idx == 3:
-            self._cycle_picon(1)
+        if idx in self.EDITABLE_FIELDS:
+            self._enter_pad_for_field(idx)
+            return
+        if idx == 3:
+            self.stream_auth_field.toggle()
             self.zone = "fields"
-        elif idx == 4:
+        elif idx == 7:
             self._cycle_pig_mode(1)
             self.zone = "fields"
         self._refresh_focus()
 
     def _on_pad_click(self, r, c):
         self.zone = "pad"
-        self.pad_r, self.pad_c = r, c
-        self._apply_char(self.PAD_LAYOUT[r][c])
+        if r < len(self.pad_rows_keys) and c < len(self.pad_rows_keys[r]):
+            self.pad_r, self.pad_c = r, c
+            self._apply_char(self.pad_rows_keys[r][c])
 
     def handle_dpad(self, key, codepoint=""):
-        if codepoint and (codepoint.isdigit() or codepoint == "."):
-            self._apply_char(codepoint)
-            return True
         if key == 8:
+            if self.field_idx in self.EDITABLE_FIELDS:
+                self.active_edit_idx = self.field_idx
             self._apply_char("⌫")
             return True
+        if codepoint and len(codepoint) == 1 and ord(codepoint) >= 32:
+            if self.zone == "fields" and self.field_idx in self.EDITABLE_FIELDS:
+                self.active_edit_idx = self.field_idx
+            if self.active_edit_idx in self.EDITABLE_FIELDS:
+                self._apply_char(codepoint)
+                return True
 
-        valid = [0, 1, 2, 3, 4, 5, 6, 7] if self._has_saved_ip() else [0, 1, 2, 3, 4, 5, 7]
+        valid = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] if self._has_saved_ip() else [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]
 
         if self.zone == "fields":
             if key == 273:
                 pos = valid.index(self.field_idx) if self.field_idx in valid else 0
                 self.field_idx = valid[(pos - 1) % len(valid)]
-                if self.field_idx in (0, 1, 2):
+                if self.field_idx in self.EDITABLE_FIELDS:
                     self.active_edit_idx = self.field_idx
+                    self._select_default_kb_for_field(self.field_idx)
                 self._refresh_focus()
                 return True
             if key == 274:
                 pos = valid.index(self.field_idx) if self.field_idx in valid else 0
                 self.field_idx = valid[(pos + 1) % len(valid)]
-                if self.field_idx in (0, 1, 2):
+                if self.field_idx in self.EDITABLE_FIELDS:
                     self.active_edit_idx = self.field_idx
+                    self._select_default_kb_for_field(self.field_idx)
                 self._refresh_focus()
                 return True
             if key == 275:
-                if self.field_idx in (0, 1, 2):
-                    self.active_edit_idx = self.field_idx
-                    self.zone = "pad"
-                elif self.field_idx == 3:
-                    self._cycle_picon(1)
-                elif self.field_idx == 4:
+                if self.field_idx in self.EDITABLE_FIELDS:
+                    self._enter_pad_for_field(self.field_idx)
+                    return True
+                if self.field_idx == 3:
+                    self.stream_auth_field.toggle()
+                elif self.field_idx == 7:
                     self._cycle_pig_mode(1)
-                elif self.field_idx == 5:
-                    self.field_idx = 6 if self._has_saved_ip() else 7
-                elif self.field_idx == 6:
-                    self.field_idx = 7
+                elif self.field_idx == 8:
+                    self.field_idx = 9 if self._has_saved_ip() else 10
+                elif self.field_idx == 9:
+                    self.field_idx = 10
                 self._refresh_focus()
                 return True
             if key == 276:
                 if self.field_idx == 3:
-                    self._cycle_picon(-1)
-                elif self.field_idx == 4:
-                    self._cycle_pig_mode(-1)
-                elif self.field_idx == 7:
-                    self.field_idx = 6 if self._has_saved_ip() else 5
+                    self.stream_auth_field.toggle()
                 elif self.field_idx == 6:
-                    self.field_idx = 5
+                    self._cycle_picon(1)
+                elif self.field_idx == 7:
+                    self._cycle_pig_mode(-1)
+                elif self.field_idx == 10:
+                    self.field_idx = 9 if self._has_saved_ip() else 8
+                elif self.field_idx == 9:
+                    self.field_idx = 8
                 self._refresh_focus()
                 return True
             if key in (13, 271, 23):
-                if self.field_idx in (0, 1, 2):
-                    self.active_edit_idx = self.field_idx
-                    self.zone = "pad"
-                    self._refresh_focus()
+                if self.field_idx in self.EDITABLE_FIELDS:
+                    self._enter_pad_for_field(self.field_idx)
                 elif self.field_idx == 3:
-                    self._cycle_picon(1)
+                    self.stream_auth_field.toggle()
                     self._refresh_focus()
-                elif self.field_idx == 4:
+                elif self.field_idx == 7:
                     self._cycle_pig_mode(1)
                     self._refresh_focus()
-                elif self.field_idx == 5:
+                elif self.field_idx == 8:
                     self.save_and_connect()
-                elif self.field_idx == 6:
+                elif self.field_idx == 9:
                     self.go_back()
-                elif self.field_idx == 7:
+                elif self.field_idx == 10:
                     App.get_running_app().exit_application()
                 return True
             if key == 27:
@@ -1320,16 +1719,24 @@ class SettingsScreen(Screen):
                 return True
 
         else:
+            num_rows = len(self.pad_rows_btns)
+            old_cols = len(self.pad_rows_btns[self.pad_r])
             if key == 273:
-                self.pad_r = (self.pad_r - 1) % len(self.PAD_LAYOUT)
+                self.pad_r = (self.pad_r - 1) % num_rows
+                new_cols = len(self.pad_rows_btns[self.pad_r])
+                if new_cols != old_cols:
+                    self.pad_c = min(new_cols - 1, int(round(self.pad_c * (new_cols - 1) / max(1, old_cols - 1))))
                 self._refresh_focus()
                 return True
             if key == 274:
-                self.pad_r = (self.pad_r + 1) % len(self.PAD_LAYOUT)
+                self.pad_r = (self.pad_r + 1) % num_rows
+                new_cols = len(self.pad_rows_btns[self.pad_r])
+                if new_cols != old_cols:
+                    self.pad_c = min(new_cols - 1, int(round(self.pad_c * (new_cols - 1) / max(1, old_cols - 1))))
                 self._refresh_focus()
                 return True
             if key == 275:
-                self.pad_c = (self.pad_c + 1) % 3
+                self.pad_c = (self.pad_c + 1) % old_cols
                 self._refresh_focus()
                 return True
             if key == 276:
@@ -1337,13 +1744,15 @@ class SettingsScreen(Screen):
                     self.pad_c -= 1
                 else:
                     self.zone = "fields"
+                    self.field_idx = self.active_edit_idx
                 self._refresh_focus()
                 return True
             if key in (13, 271, 23):
-                self._apply_char(self.PAD_LAYOUT[self.pad_r][self.pad_c])
+                self._apply_char(self.pad_rows_keys[self.pad_r][self.pad_c])
                 return True
             if key == 27:
                 self.zone = "fields"
+                self.field_idx = self.active_edit_idx
                 self._refresh_focus()
                 return True
 
@@ -1362,11 +1771,14 @@ class SettingsScreen(Screen):
             return
         app = App.get_running_app()
         app.save_config(
-            ip,
-            self.web_field.text.strip() or "80",
-            self.stream_field.text.strip() or "8001",
-            self.picon_field.text.strip() or DEFAULT_PICON_DIR,
+            ip=ip,
+            web_port=self.web_field.text.strip() or "80",
+            stream_port=self.stream_field.text.strip() or "8001",
+            picon_dir=self.picon_field.text.strip() or DEFAULT_PICON_DIR,
             pig_mode=self.pig_mode_key,
+            username=self.user_field.text.strip(),
+            password=self.pass_field.text,
+            stream_auth=self.stream_auth_field.checked,
         )
         app.root.current = "main"
         app.main_screen.load_bouquets()
@@ -1431,7 +1843,7 @@ class FullscreenPlayerScreen(Screen):
 
 
 class EPGScreen(Screen):
-    """Pełny ekran EPG: Info + Podobne audycje, Pojedynczy EPG, Multi EPG, Dodaj timer."""
+    """Pełny ekran EPG v1.3: natychmiastowy interfejs z animacją ładowania + 2x Lewo na EPG/MENU/EXIT."""
     def __init__(self, video_backend, picon_manager, **kwargs):
         super().__init__(**kwargs)
         self.video_backend = video_backend
@@ -1442,6 +1854,10 @@ class EPGScreen(Screen):
         self.mode, self.single_events, self.multi_rows = "single", [], []
         self.sel_idx, self.row_widgets = 0, []
         self._req_id = self._sim_req_id = 0
+        self._pending_fetch_mode = None
+        self._lbtn_focus = False
+        self._lbtn_idx = 0
+        self._left_timer = None
 
         root = BoxLayout(orientation="horizontal", padding=dp(14), spacing=dp(12))
 
@@ -1488,17 +1904,20 @@ class EPGScreen(Screen):
         left_col.add_widget(left_box)
 
         lbtns = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(10), padding=(dp(10), 0))
+        self._lbtn_actions = [self._toggle_info_single, self._open_settings, self.go_back]
+        self._lbtn_widgets = []
         for txt, fn in (("EPG", self._toggle_info_single), ("MENU", self._open_settings), ("EXIT", self.go_back)):
             b = PillButton(text=txt, accent=C_CYAN, font_size=13.5)
             b.bind(on_release=lambda *a, f=fn: f())
             lbtns.add_widget(b)
+            self._lbtn_widgets.append(b)
         left_col.add_widget(lbtns)
         root.add_widget(left_col)
 
         right_col = BoxLayout(orientation="vertical", size_hint_x=0.63, spacing=dp(6))
 
         top_row = BoxLayout(size_hint_y=None, height=dp(48))
-        self.toast_lbl = make_label("", 14, C_MINT, bold=True)
+        self.toast_lbl = make_label("", 13.5, C_MINT, bold=True)
         top_row.add_widget(self.toast_lbl)
         clk_box = BoxLayout(orientation="vertical", size_hint_x=None, width=dp(220))
         self.clock_lbl = make_label("00:00:00", 18, C_CYAN, halign="right", valign="bottom", shorten=False)
@@ -1528,6 +1947,8 @@ class EPGScreen(Screen):
 
         self.body_container = BoxLayout(orientation="vertical", spacing=dp(6))
         main_card.add_widget(self.body_container)
+
+        self.loading_panel = LoadingPanel("Pobieram EPG z dekodera")
 
         self.info_scroll = ScrollView(bar_width=dp(4), bar_color=C_CYAN)
         self.info_text = Label(text="", markup=True, font_size=sp(15), color=C_GRAY,
@@ -1579,8 +2000,46 @@ class EPGScreen(Screen):
         Clock.schedule_interval(self._update_clock, 1.0)
         self._update_clock(0)
 
+    def _show_loading_state(self, message="Pobieram EPG z dekodera"):
+        self.body_container.clear_widgets()
+        self.body_container.add_widget(self.loading_panel)
+        self.loading_panel.start(message)
+
+    def _stop_loading_state(self):
+        self.loading_panel.stop()
+
+    def _refresh_lbtn_focus(self):
+        for i, b in enumerate(self._lbtn_widgets):
+            b.set_tv_focus(self._lbtn_focus and i == self._lbtn_idx, danger=(i == 2))
+
+    def _enter_lbtn_focus(self, idx=0):
+        self._lbtn_focus = True
+        self._lbtn_idx = idx
+        self._refresh_lbtn_focus()
+        self.toast_lbl.text = "Pasek EPG / MENU / EXIT   •   ◄► wybór   •   OK zatwierdź   •   ▲▼ powrót"
+
+    def _exit_lbtn_focus(self):
+        if self._lbtn_focus:
+            self._lbtn_focus = False
+            self._refresh_lbtn_focus()
+            self.toast_lbl.text = ""
+
     def on_enter(self):
-        Clock.schedule_once(lambda dt: self._sync_pig(), 0.05)
+        self._exit_lbtn_focus()
+        self._sync_pig()
+        Clock.schedule_once(lambda dt: self._sync_pig(), 0.08)
+        Clock.schedule_once(lambda dt: self._sync_pig(), 0.25)
+        if self._pending_fetch_mode:
+            mode = self._pending_fetch_mode
+            self._pending_fetch_mode = None
+            Clock.schedule_once(lambda dt, m=mode: self._trigger_fetch_for_mode(m), 0.05)
+
+    def on_leave(self):
+        self._stop_loading_state()
+        self._exit_lbtn_focus()
+        if self._left_timer:
+            self._left_timer.cancel()
+            self._left_timer = None
 
     def _sync_pig(self, *args):
         app = App.get_running_app()
@@ -1593,9 +2052,11 @@ class EPGScreen(Screen):
         self.date_lbl.text = f"{PL_DAYS[now.weekday()]} {now.day} {PL_MONTHS[now.month]} {now.year}"
 
     def _open_settings(self):
+        self._exit_lbtn_focus()
         App.get_running_app().root.current = "settings"
 
     def _toggle_info_single(self):
+        self._exit_lbtn_focus()
         self.set_mode("info" if self.mode != "info" else "single")
 
     def _on_pig_touch(self, widget, touch):
@@ -1605,25 +2066,43 @@ class EPGScreen(Screen):
         return False
 
     def go_back(self):
+        self._exit_lbtn_focus()
         app = App.get_running_app()
         if self.return_screen == "player" and self.channel_item and self.video_backend.is_embedded:
             app.main_screen.play_channel_fullscreen(self.channel_item)
         else:
             app.root.current = "main"
 
-    def open_for_channel(self, channel_item, bouquet_items, bouquet_ref, return_screen="main", start_mode="single"):
+    def open_for_channel(self, channel_item, bouquet_items, bouquet_ref,
+                         return_screen="main", start_mode="single", initial_now_ev=None):
+        self._req_id += 1
+        self._exit_lbtn_focus()
         self.channel_item = channel_item
         self.bouquet_items = [it for it in bouquet_items if it["type"] == "channel"]
         self.bouquet_ref = bouquet_ref
         self.return_screen = return_screen
         self.toast_lbl.text = ""
         self.single_events, self.multi_rows, self.sel_idx = [], [], 0
+        self.row_widgets = []
+        self.tbl_box.clear_widgets()
+        self.mode = start_mode
 
-        sref, name = channel_item.get("sref", ""), channel_item.get("name", "")
+        sref = channel_item.get("sref", "")
+        name = clean_epg_text(channel_item.get("name", ""), single_line=True)
         self.left_ch_name.text = self.hdr_channel.text = name
+        self._update_event_headers(name, initial_now_ev or {})
         self.left_picon.opacity = self.pig_image.opacity = 0
         self.picon_manager.get_picon(sref, name, self._on_picon)
-        self.set_mode(start_mode, fetch=True)
+
+        msg = "Pobieram Multi EPG z dekodera" if start_mode == "multi" else "Pobieram EPG z dekodera"
+        self._show_loading_state(msg)
+        self._pending_fetch_mode = start_mode
+
+    def _trigger_fetch_for_mode(self, mode):
+        if mode == "multi":
+            self._fetch_multi_epg()
+        else:
+            self._fetch_single_epg()
 
     def _on_picon(self, sref, tex):
         if self.channel_item and self.channel_item.get("sref") == sref and tex:
@@ -1633,23 +2112,28 @@ class EPGScreen(Screen):
 
     def set_mode(self, mode, fetch=False):
         self.mode = mode
-        self.body_container.clear_widgets()
         if mode == "info":
-            self.body_container.add_widget(self.info_scroll)
             if not self.single_events or fetch:
+                self._show_loading_state("Pobieram EPG z dekodera")
                 self._fetch_single_epg()
             else:
+                self._stop_loading_state()
+                self.body_container.clear_widgets()
+                self.body_container.add_widget(self.info_scroll)
                 self._render_info_view()
         elif mode == "single":
             self.th1.text, self.th2.text, self.th3.text, self.th4.text = "DATA", "GODZINA", "AUDYCJA", "CZAS"
-            self.body_container.add_widget(self.table_view)
             if not self.single_events or fetch:
+                self._show_loading_state("Pobieram EPG z dekodera")
                 self._fetch_single_epg()
             else:
+                self._stop_loading_state()
+                self.body_container.clear_widgets()
+                self.body_container.add_widget(self.table_view)
                 self._render_single_table()
         elif mode == "multi":
             self.th1.text, self.th2.text, self.th3.text, self.th4.text = "KANAŁ", "TERAZ", "AUDYCJA  /  NASTĘPNIE", "KONIEC"
-            self.body_container.add_widget(self.table_view)
+            self._show_loading_state("Pobieram Multi EPG z dekodera")
             self._fetch_multi_epg()
 
     def _fetch_single_epg(self):
@@ -1658,115 +2142,173 @@ class EPGScreen(Screen):
         self._req_id += 1
         rid = self._req_id
         sref = self.channel_item.get("sref", "")
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(sref, safe='')}"
-        self.tbl_desc.text = "Pobieranie pełnej tabeli EPG z dekodera..."
-        self.info_text.text = "Pobieranie danych EPG..."
 
         def worker():
-            evs = []
+            evs, err_msg = [], ""
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
-                with urllib.request.urlopen(req, timeout=7) as r:
-                    evs = json.loads(r.read().decode("utf-8")).get("events", [])
-            except Exception:
-                pass
-            Clock.schedule_once(lambda dt: self._on_single_epg(rid, evs))
+                req = make_webif_request(url, cfg=cfg)
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    evs = clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", []))
+            except urllib.error.HTTPError as e:
+                err_msg = "Błąd 401: sprawdź login i hasło OpenWebif w Ustawieniach." if e.code == 401 else f"Błąd HTTP {e.code} podczas pobierania EPG."
+            except Exception as e:
+                err_msg = f"Błąd pobierania EPG: {e}"
+            Clock.schedule_once(lambda dt: self._on_single_epg(rid, evs, err_msg))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_single_epg(self, rid, events):
+    def _on_single_epg(self, rid, events, err_msg=""):
         if rid != self._req_id:
             return
+        self._stop_loading_state()
         now_ts = time.time()
         self.single_events = [e for e in events if (e.get("begin_timestamp") or 0) + (e.get("duration_sec") or 0) >= now_ts - 60] or events
         self.sel_idx = 0
+        if err_msg:
+            self.toast_lbl.text = err_msg
         if self.mode == "info":
-            self._render_info_view()
+            self.body_container.clear_widgets()
+            self.body_container.add_widget(self.info_scroll)
+            self._render_info_view(err_msg)
         elif self.mode == "single":
-            self._render_single_table()
+            self.th1.text, self.th2.text, self.th3.text, self.th4.text = "DATA", "GODZINA", "AUDYCJA", "CZAS"
+            self.body_container.clear_widgets()
+            self.body_container.add_widget(self.table_view)
+            self._render_single_table(err_msg)
 
-    def _render_single_table(self):
+    def _render_single_table(self, err_msg=""):
         self.tbl_box.clear_widgets()
         self.row_widgets = []
         if not self.single_events:
-            self.tbl_box.add_widget(make_label("Brak danych EPG dla tego kanału.", 15, C_MUTED, halign="center",
+            txt = err_msg or "Brak danych EPG dla tego kanału."
+            self.tbl_box.add_widget(make_label(txt, 15, C_ERROR if err_msg else C_MUTED, halign="center",
                                                size_hint_y=None, height=dp(60)))
             self.tbl_desc.text = ""
             return
 
-        for i, ev in enumerate(self.single_events[:120]):
-            b, d = ev.get("begin_timestamp") or 0, ev.get("duration_sec") or 0
-            row = EPGTableRow(i, self._on_table_row_click)
-            row.col1.text = fmt_epg_date_short(b)
-            row.col2.text = f"{fmt_epg_time(b)} - {fmt_epg_time(b + d)}" if b else ""
-            row.col3.text = f"[b]{escape_markup(ev.get('title', ''))}[/b]"
-            row.col4.text = f"{int(d // 60)} min" if d else ""
-            self.tbl_box.add_widget(row)
-            self.row_widgets.append(row)
+        rid = self._req_id
+        events_slice = self.single_events[:100]
 
-        self.sel_idx = max(0, min(self.sel_idx, len(self.row_widgets) - 1))
-        self._highlight_table_row()
+        def add_batch(start_i):
+            if rid != self._req_id or self.mode != "single":
+                return
+            end_i = min(len(events_slice), start_i + 24)
+            for i in range(start_i, end_i):
+                ev = events_slice[i]
+                b, d = ev.get("begin_timestamp") or 0, ev.get("duration_sec") or 0
+                row = EPGTableRow(i, self._on_table_row_click)
+                row.col1.text = fmt_epg_date_short(b)
+                row.col2.text = f"{fmt_epg_time(b)} - {fmt_epg_time(b + d)}" if b else ""
+                row.col3.text = f"[b]{escape_markup(clean_epg_text(ev.get('title', ''), single_line=True))}[/b]"
+                row.col4.text = f"{int(d // 60)} min" if d else ""
+                self.tbl_box.add_widget(row)
+                self.row_widgets.append(row)
+            if start_i == 0:
+                self.sel_idx = max(0, min(self.sel_idx, len(self.row_widgets) - 1))
+                self._highlight_table_row()
+            if end_i < len(events_slice):
+                Clock.schedule_once(lambda dt, nxt=end_i: add_batch(nxt), 0.015)
+
+        add_batch(0)
 
     def _fetch_multi_epg(self):
         if not self.bouquet_ref:
+            self._stop_loading_state()
             return
         self._req_id += 1
         rid = self._req_id
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         bref_q = urllib.parse.quote(self.bouquet_ref, safe="")
         url_now = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnow?bRef={bref_q}"
         url_next = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnext?bRef={bref_q}"
-        self.tbl_desc.text = "Pobieranie Multi EPG dla całego bukietu..."
 
         def worker():
-            now_map, next_map = {}, {}
+            now_map, next_map, err_msg = {}, {}, ""
             for url, target in ((url_now, now_map), (url_next, next_map)):
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
-                    with urllib.request.urlopen(req, timeout=7) as r:
-                        for ev in json.loads(r.read().decode("utf-8")).get("events", []):
+                    req = make_webif_request(url, cfg=cfg)
+                    with urllib.request.urlopen(req, timeout=8) as r:
+                        for ev in clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", [])):
                             if ev.get("sref"):
                                 target[ev["sref"]] = ev
-                except Exception:
-                    pass
-            Clock.schedule_once(lambda dt: self._on_multi_epg(rid, now_map, next_map))
+                except urllib.error.HTTPError as e:
+                    if e.code == 401:
+                        err_msg = "Błąd 401: sprawdź login i hasło OpenWebif w Ustawieniach."
+                except Exception as e:
+                    if not err_msg:
+                        err_msg = f"Błąd Multi EPG: {e}"
+            Clock.schedule_once(lambda dt: self._on_multi_epg(rid, now_map, next_map, err_msg))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_multi_epg(self, rid, now_map, next_map):
+    def _on_multi_epg(self, rid, now_map, next_map, err_msg=""):
         if rid != self._req_id or self.mode != "multi":
             return
+        self._stop_loading_state()
+        self.body_container.clear_widgets()
+        self.body_container.add_widget(self.table_view)
         self.multi_rows, self.row_widgets = [], []
         self.tbl_box.clear_widgets()
+        if err_msg:
+            self.toast_lbl.text = err_msg
+
         cur_sref = self.channel_item.get("sref", "") if self.channel_item else ""
         start_sel = 0
-
         for idx, ch in enumerate(self.bouquet_items):
             sref = ch["sref"]
-            ev_now, ev_nxt = now_map.get(sref), next_map.get(sref)
-            self.multi_rows.append({"ch": ch, "now": ev_now, "next": ev_nxt})
+            self.multi_rows.append({"ch": ch, "now": now_map.get(sref), "next": next_map.get(sref)})
             if sref == cur_sref:
                 start_sel = idx
 
-            row = EPGTableRow(idx, self._on_table_row_click)
-            row.col1.width, row.col2.width = dp(145), dp(58)
-            row.col1.text, row.col1.color = f"{ch['num']}. {ch['name']}", C_MINT
-            if ev_now and ev_now.get("title"):
-                b, d = ev_now.get("begin_timestamp") or 0, ev_now.get("duration_sec") or 0
-                row.col2.text = fmt_epg_time(b)
-                nxt_txt = f"  [color=#48BF84]| {fmt_epg_time(ev_nxt.get('begin_timestamp'))} {escape_markup(ev_nxt.get('title', ''))}[/color]" if ev_nxt and ev_nxt.get("title") else ""
-                row.col3.text = f"[color=#F2F5FA]{escape_markup(ev_now.get('title', ''))}[/color]{nxt_txt}"
-                row.col4.text = fmt_epg_time(b + d) if b and d else ""
-            else:
-                row.col2.text, row.col3.text, row.col4.text = "--:--", "[color=#6D7682]Brak danych EPG[/color]", ""
-            self.tbl_box.add_widget(row)
-            self.row_widgets.append(row)
+        if not self.multi_rows:
+            self.tbl_box.add_widget(make_label("Brak kanałów w bieżącym bukiecie.", 15, C_MUTED, halign="center",
+                                               size_hint_y=None, height=dp(60)))
+            return
 
-        self.sel_idx = start_sel
-        self._highlight_table_row()
+        total = len(self.multi_rows)
+        highlighted = [False]
+
+        def add_batch(start_i):
+            if rid != self._req_id or self.mode != "multi":
+                return
+            end_i = min(total, start_i + 25)
+            for idx in range(start_i, end_i):
+                rec = self.multi_rows[idx]
+                ch, ev_now, ev_nxt = rec["ch"], rec["now"], rec["next"]
+                row = EPGTableRow(idx, self._on_table_row_click)
+                row.col1.width, row.col2.width = dp(145), dp(58)
+                row.col1.text = f"{ch['num']}. {clean_epg_text(ch['name'], single_line=True)}"
+                row.col1.color = C_MINT
+                if ev_now and ev_now.get("title"):
+                    b, d = ev_now.get("begin_timestamp") or 0, ev_now.get("duration_sec") or 0
+                    row.col2.text = fmt_epg_time(b)
+                    now_t = clean_epg_text(ev_now.get("title", ""), single_line=True)
+                    nxt_t = clean_epg_text(ev_nxt.get("title", ""), single_line=True) if ev_nxt else ""
+                    nxt_txt = f"  [color=#48BF84]| {fmt_epg_time(ev_nxt.get('begin_timestamp'))} {escape_markup(nxt_t)}[/color]" if nxt_t else ""
+                    row.col3.text = f"[color=#F2F5FA]{escape_markup(now_t)}[/color]{nxt_txt}"
+                    row.col4.text = fmt_epg_time(b + d) if b and d else ""
+                else:
+                    row.col2.text, row.col3.text, row.col4.text = "--:--", "[color=#6D7682]Brak danych EPG[/color]", ""
+                self.tbl_box.add_widget(row)
+                self.row_widgets.append(row)
+
+            if not highlighted[0] and len(self.row_widgets) > start_sel:
+                self.sel_idx = start_sel
+                self._highlight_table_row()
+                highlighted[0] = True
+            elif start_i == 0 and not highlighted[0] and self.row_widgets:
+                self.sel_idx = 0
+                self._highlight_table_row()
+
+            if end_i < total:
+                Clock.schedule_once(lambda dt, nxt=end_i: add_batch(nxt), 0.015)
+
+        add_batch(0)
 
     def _on_table_row_click(self, idx):
+        self._exit_lbtn_focus()
         if idx == self.sel_idx:
             self._activate_selected()
         else:
@@ -1784,21 +2326,22 @@ class EPGScreen(Screen):
         if self.mode == "single" and self.sel_idx < len(self.single_events):
             ev = self.single_events[self.sel_idx]
             self._update_event_headers(self.channel_item.get("name", ""), ev)
-            desc = (ev.get("longdesc") or ev.get("shortdesc") or "").strip().replace("\n", " ")
-            self.tbl_desc.text = (desc or "Brak szczegółowego opisu.") + "   [OK = opis | Prawo = Multi EPG]"
+            desc = clean_epg_text(ev.get("longdesc") or ev.get("shortdesc") or "", single_line=True)
+            self.tbl_desc.text = (desc or "Brak szczegółowego opisu.") + "   [OK = opis | ► = Multi EPG | 2×◄ = EPG/MENU/EXIT]"
         elif self.mode == "multi" and self.sel_idx < len(self.multi_rows):
             rec = self.multi_rows[self.sel_idx]
             ev = rec["now"] or {}
             self._update_event_headers(rec["ch"]["name"], ev)
-            desc = (ev.get("longdesc") or ev.get("shortdesc") or "").strip().replace("\n", " ")
-            self.tbl_desc.text = (desc or "Brak opisu audycji.") + "   [OK = przełącz | Lewo = Pojedynczy EPG]"
+            desc = clean_epg_text(ev.get("longdesc") or ev.get("shortdesc") or "", single_line=True)
+            self.tbl_desc.text = (desc or "Brak opisu audycji.") + "   [OK = przełącz | ◄ = Pojedynczy | 2×◄ = EPG/MENU/EXIT]"
 
     def _update_event_headers(self, ch_name, ev):
-        title = ev.get("title", "") if ev else ""
+        ch_clean = clean_epg_text(ch_name, single_line=True)
+        title = clean_epg_text(ev.get("title", ""), single_line=True) if ev else ""
         b, d = (ev.get("begin_timestamp") or 0) if ev else 0, (ev.get("duration_sec") or 0) if ev else 0
         now_ts = time.time()
-        self.hdr_channel.text = self.left_ch_name.text = ch_name
-        self.left_ev_title.text, self.left_sub_title.text = (title or ch_name), title
+        self.hdr_channel.text = self.left_ch_name.text = ch_clean
+        self.left_ev_title.text, self.left_sub_title.text = (title or ch_clean), title
 
         if b > 0 and d > 0:
             t1, t2 = fmt_epg_time(b), fmt_epg_time(b + d)
@@ -1810,9 +2353,9 @@ class EPGScreen(Screen):
             self.hdr_time.text = self.hdr_dur.text = self.left_start.text = self.left_end.text = ""
             self.left_progress.set_progress(0.0, visible=False)
 
-    def _render_info_view(self):
+    def _render_info_view(self, err_msg=""):
         if not self.single_events:
-            self.info_text.text = "Brak danych EPG dla wybranego kanału."
+            self.info_text.text = err_msg or "Brak danych EPG dla wybranego kanału."
             return
         self.sel_idx = max(0, min(self.sel_idx, len(self.single_events) - 1))
         ev = self.single_events[self.sel_idx]
@@ -1821,9 +2364,9 @@ class EPGScreen(Screen):
         self._fetch_similar_events(ev)
 
     def _set_info_markup(self, ev, similar_lines):
-        title = escape_markup((ev.get("title") or "").strip())
-        shortd = escape_markup((ev.get("shortdesc") or "").strip())
-        longd = escape_markup((ev.get("longdesc") or "").strip())
+        title = escape_markup(clean_epg_text(ev.get("title") or "", single_line=True))
+        shortd = escape_markup(clean_epg_text(ev.get("shortdesc") or "", single_line=False))
+        longd = escape_markup(clean_epg_text(ev.get("longdesc") or "", single_line=False))
         parts = []
         if title:
             parts.append(f"[color=#F2F5FA][b]{title}[/b][/color]\n")
@@ -1838,28 +2381,29 @@ class EPGScreen(Screen):
         self.info_text.text = "\n".join(parts)
 
     def _fetch_similar_events(self, ev):
-        title = (ev.get("title") or "").strip()
+        title = clean_epg_text(ev.get("title") or "", single_line=True)
         if not title:
             return self._set_info_markup(ev, [])
         self._sim_req_id += 1
         rid = self._sim_req_id
         q = title.split(":")[0].strip() if ":" in title and len(title.split(":")[0].strip()) >= 5 else title
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgsearch?search={urllib.parse.quote(q)}"
 
         def worker():
             lines = []
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+                req = make_webif_request(url, cfg=cfg)
                 with urllib.request.urlopen(req, timeout=5) as r:
-                    evs = json.loads(r.read().decode("utf-8")).get("events", [])
+                    evs = clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", []))
                 for e in evs:
                     if e.get("id") == ev.get("id"):
                         continue
                     b = e.get("begin_timestamp") or 0
                     if b > 0:
                         dt = datetime.datetime.fromtimestamp(b)
-                        lines.append(f"{dt.day} {PL_MONTHS_SHORT[dt.month]} {dt.year}, {dt.strftime('%H:%M')} - {e.get('sname', '')}")
+                        sname = clean_epg_text(e.get("sname", ""), single_line=True)
+                        lines.append(f"{dt.day} {PL_MONTHS_SHORT[dt.month]} {dt.year}, {dt.strftime('%H:%M')} - {sname}")
                         if len(lines) >= 6:
                             break
             except Exception:
@@ -1884,17 +2428,20 @@ class EPGScreen(Screen):
         if not sref or not event_id:
             self.toast_lbl.text = "Brak ID audycji do dodania timera."
             return
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/timeraddbyeventid?sRef={urllib.parse.quote(sref, safe='')}&eventid={event_id}"
         self.toast_lbl.text = "Wysyłam timer do dekodera..."
 
         def worker():
             msg = "Błąd dodawania timera"
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+                req = make_webif_request(url, cfg=cfg)
                 with urllib.request.urlopen(req, timeout=5) as r:
                     res = json.loads(r.read().decode("utf-8"))
-                    msg = res.get("message") or ("Timer dodany pomyślnie!" if res.get("result") else "Nie udało się dodać timera")
+                    raw_msg = clean_epg_text(res.get("message") or "", single_line=True)
+                    msg = raw_msg or ("Timer dodany pomyślnie!" if res.get("result") else "Nie udało się dodać timera")
+            except urllib.error.HTTPError as e:
+                msg = "Błąd 401: wymagane logowanie OpenWebif" if e.code == 401 else f"Błąd HTTP {e.code}"
             except Exception as e:
                 msg = f"Błąd timera: {e}"
             Clock.schedule_once(lambda dt: setattr(self.toast_lbl, "text", msg))
@@ -1909,10 +2456,50 @@ class EPGScreen(Screen):
         elif self.mode == "multi" and self.sel_idx < len(self.multi_rows):
             App.get_running_app().main_screen.play_channel_fullscreen(self.multi_rows[self.sel_idx]["ch"])
 
+    def _delayed_prev_mode(self, dt):
+        self._left_timer = None
+        prv = {"single": "info", "info": "multi", "multi": "single"}
+        self.set_mode(prv.get(self.mode, "single"))
+
     def handle_dpad(self, key):
+        if self._lbtn_focus:
+            if key == 276:
+                self._lbtn_idx = (self._lbtn_idx - 1) % len(self._lbtn_widgets)
+                self._refresh_lbtn_focus()
+                return True
+            if key == 275:
+                self._lbtn_idx = (self._lbtn_idx + 1) % len(self._lbtn_widgets)
+                self._refresh_lbtn_focus()
+                return True
+            if key in (13, 271, 23):
+                fn = self._lbtn_actions[self._lbtn_idx]
+                self._exit_lbtn_focus()
+                fn()
+                return True
+            if key in (273, 274, 27):
+                self._exit_lbtn_focus()
+                return True
+            return True
+
         if key == 27:
+            if self._left_timer:
+                self._left_timer.cancel()
+                self._left_timer = None
             self.go_back()
             return True
+        if key == 276:
+            if self._left_timer is not None:
+                self._left_timer.cancel()
+                self._left_timer = None
+                self._enter_lbtn_focus(0)
+            else:
+                self._left_timer = Clock.schedule_once(self._delayed_prev_mode, 0.25)
+            return True
+
+        if self._left_timer is not None:
+            self._left_timer.cancel()
+            self._left_timer = None
+
         if key == 273:
             if self.mode == "info" and self.single_events:
                 self.sel_idx = (self.sel_idx - 1) % len(self.single_events)
@@ -1933,12 +2520,11 @@ class EPGScreen(Screen):
             nxt = {"single": "multi", "multi": "info", "info": "single"}
             self.set_mode(nxt.get(self.mode, "single"))
             return True
-        if key == 276:
-            prv = {"single": "info", "info": "multi", "multi": "single"}
-            self.set_mode(prv.get(self.mode, "single"))
-            return True
         if key in (13, 271, 23):
             self._activate_selected()
+            return True
+        if key == ord("m"):
+            self._open_settings()
             return True
         if key == ord("1"):
             self.set_mode("info")
@@ -1971,6 +2557,9 @@ class EnigmaChannelSelectionScreen(Screen):
         self._toast_until = 0.0
         self.active_modal = None
         self.playing_item = None
+        self._lbtn_focus = False
+        self._lbtn_idx = 0
+        self._left_timer = None
 
         root = BoxLayout(orientation="horizontal", padding=dp(14), spacing=dp(12))
 
@@ -2014,14 +2603,21 @@ class EnigmaChannelSelectionScreen(Screen):
         left_col.add_widget(left_box)
 
         lbtns = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(10), padding=(dp(10), 0))
+        self._lbtn_actions = [
+            lambda: App.get_running_app().open_epg_from("main"),
+            self.open_settings,
+            lambda: App.get_running_app().exit_application(),
+        ]
+        self._lbtn_widgets = []
         for txt, fn in (
-            ("EPG", lambda: App.get_running_app().open_epg_from("main")),
-            ("MENU", self.open_settings),
-            ("EXIT", lambda: App.get_running_app().exit_application()),
+            ("EPG", self._lbtn_actions[0]),
+            ("MENU", self._lbtn_actions[1]),
+            ("EXIT", self._lbtn_actions[2]),
         ):
             b = PillButton(text=txt, accent=C_CYAN, font_size=13.5)
             b.bind(on_release=lambda *a, f=fn: f())
             lbtns.add_widget(b)
+            self._lbtn_widgets.append(b)
         left_col.add_widget(lbtns)
         root.add_widget(left_col)
 
@@ -2100,8 +2696,34 @@ class EnigmaChannelSelectionScreen(Screen):
         app = App.get_running_app()
         return app.config_data.get("pig_mode", "follow") if app else "follow"
 
+    def _refresh_lbtn_focus(self):
+        for i, b in enumerate(self._lbtn_widgets):
+            b.set_tv_focus(self._lbtn_focus and i == self._lbtn_idx, danger=(i == 2))
+
+    def _enter_lbtn_focus(self, idx=0):
+        self._lbtn_focus = True
+        self._lbtn_idx = idx
+        self._refresh_lbtn_focus()
+        self._toast_until = time.monotonic() + 4.0
+        self.subinfo_lbl.color = C_CYAN
+        self.subinfo_lbl.text = "Pasek EPG / MENU / EXIT   •   ◄► wybór   •   OK zatwierdź   •   ▲▼ lista"
+
+    def _exit_lbtn_focus(self):
+        if self._lbtn_focus:
+            self._lbtn_focus = False
+            self._refresh_lbtn_focus()
+            self._toast_until = 0.0
+            self.subinfo_lbl.color = C_MUTED
+
     def on_enter(self):
-        Clock.schedule_once(self._on_enter_resume_pig, 0.08)
+        self._exit_lbtn_focus()
+        Clock.schedule_once(self._on_enter_resume_pig, 0.06)
+
+    def on_leave(self):
+        self._exit_lbtn_focus()
+        if self._left_timer:
+            self._left_timer.cancel()
+            self._left_timer = None
 
     def _on_enter_resume_pig(self, dt):
         app = App.get_running_app()
@@ -2131,6 +2753,7 @@ class EnigmaChannelSelectionScreen(Screen):
         self.date_lbl.text = f"{now.day} {PL_MONTHS[now.month]} {now.year}"
 
     def open_settings(self):
+        self._exit_lbtn_focus()
         App.get_running_app().root.current = "settings"
 
     def toggle_pig_mode_quick(self):
@@ -2154,6 +2777,7 @@ class EnigmaChannelSelectionScreen(Screen):
     def open_bouquet_modal(self):
         if self.active_modal:
             return
+        self._exit_lbtn_focus()
         m = BouquetModal(
             bouquets=self.bouquets,
             current_idx=self.bouquet_idx,
@@ -2171,25 +2795,37 @@ class EnigmaChannelSelectionScreen(Screen):
         m.open()
 
     def load_bouquets(self):
-        cfg = App.get_running_app().config_data
-        ip, wp, pdir = cfg.get("ip", ""), cfg.get("web_port", "80"), cfg.get("picon_dir", DEFAULT_PICON_DIR)
-        self.picon_manager.configure(ip, wp, pdir)
+        cfg = dict(App.get_running_app().config_data)
+        ip = cfg.get("ip", "")
+        wp = cfg.get("web_port", "80")
+        pdir = cfg.get("picon_dir", DEFAULT_PICON_DIR)
+        user = cfg.get("username", "")
+        pwd = cfg.get("password", "")
+        self.picon_manager.configure(ip, wp, pdir, username=user, password=pwd)
         self.sel_ch_lbl.text = f"Łączenie z {ip}..."
         self.subinfo_lbl.text = f"OpenWebif: {ip}:{wp}  |  Pikony: {pdir}"
-        threading.Thread(target=self._fetch_bouquets_worker, args=(ip, wp), daemon=True).start()
+        threading.Thread(target=self._fetch_bouquets_worker, args=(cfg,), daemon=True).start()
 
-    def _fetch_bouquets_worker(self, ip, wp):
+    def _fetch_bouquets_worker(self, cfg):
+        ip = cfg.get("ip", "")
+        wp = cfg.get("web_port", "80")
         try:
-            req = urllib.request.Request(f"http://{ip}:{wp}/api/getallservices", headers={"User-Agent": "EnigmaTV-Python"})
+            req = make_webif_request(f"http://{ip}:{wp}/api/getallservices", cfg=cfg)
             with urllib.request.urlopen(req, timeout=8) as r:
-                services = json.loads(r.read().decode("utf-8")).get("services", [])
+                services = clean_services(json.loads(r.read().decode("utf-8")).get("services", []))
             Clock.schedule_once(lambda dt: self._on_bouquets_loaded(services, ip))
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                msg = f"Błąd 401 ({ip}): OpenWebif wymaga loginu i hasła — wpisz je w Ustawieniach (MENU)."
+            else:
+                msg = f"Błąd HTTP {e.code} połączenia z {ip}"
+            Clock.schedule_once(lambda dt, m=msg: self._on_bouquets_error(m))
         except Exception as e:
             Clock.schedule_once(lambda dt, m=f"Błąd połączenia z {ip}: {e}": self._on_bouquets_error(m))
 
     def _on_bouquets_error(self, msg):
         self.sel_ch_lbl.text = "Brak połączenia"
-        self.epg_title_lbl.text = "Wciśnij LEWO / WSTECZ -> Ustawienia IP"
+        self.epg_title_lbl.text = "Wciśnij LEWO / 2×LEWO -> MENU (Ustawienia)"
         self.epg_desc_lbl.text = msg
         self.items = []
         self._render_viewport()
@@ -2227,12 +2863,14 @@ class EnigmaChannelSelectionScreen(Screen):
             return
         self.bouquet_idx = idx
         b = self.bouquets[idx]
-        b_name, b_ref = b.get("servicename", "Bukiet"), b.get("servicereference", "")
+        b_name = clean_epg_text(b.get("servicename", "Bukiet"), single_line=True)
+        b_ref = b.get("servicereference", "")
         self.bouquet_lbl.text = b_name
 
         built, ch_num = [], 1
         for sub in b.get("subservices", []):
-            sref, sname = sub.get("servicereference", ""), sub.get("servicename", "")
+            sref = sub.get("servicereference", "")
+            sname = clean_epg_text(sub.get("servicename", ""), single_line=True)
             if sref.startswith("1:64:"):
                 built.append({"type": "marker", "name": sname})
             else:
@@ -2242,7 +2880,6 @@ class EnigmaChannelSelectionScreen(Screen):
         self.items, self.epg_now, self.epg_next, self.top_idx = built, {}, {}, 0
         self.selected_idx = self._find_next_channel(0, 1)
 
-        # Przy starcie aplikacji w trybie Enigma2 ustaw kursor na ostatnio oglądanym kanale (jeśli jest na liście)
         if is_initial:
             last_sref = App.get_running_app().config_data.get("last_sref", "")
             if last_sref:
@@ -2252,13 +2889,12 @@ class EnigmaChannelSelectionScreen(Screen):
                         break
 
         mode_tag = "PIP: Enigma2" if self._get_pig_mode() == "enigma2" else "PIP: Auto"
-        self.subinfo_lbl.text = f"{b_name}  •  {mode_tag}  |  [OK] Pełny ekran  |  [◄] Menu & Bukiety"
+        self.subinfo_lbl.text = f"{b_name}  •  {mode_tag}  |  [OK] Pełny ekran  |  [◄] Menu  |  [2×◄] EPG/MENU/EXIT"
         self._ensure_visible()
         self._render_viewport()
         self._on_selection_changed()
         self._fetch_epg_bouquet(b_ref)
 
-        # W trybie Enigma2 uruchom w PIP ostatni oglądany (lub pierwszy na liście) jeśli nic jeszcze nie gra
         if platform == "android" and self._get_pig_mode() == "enigma2" and not self.video_backend.is_playing:
             target = self._find_last_or_first_channel()
             if target:
@@ -2323,6 +2959,7 @@ class EnigmaChannelSelectionScreen(Screen):
         return False
 
     def _on_slot_clicked(self, slot):
+        self._exit_lbtn_focus()
         idx = self.top_idx + slot
         if idx >= len(self.items) or self.items[idx]["type"] != "channel":
             return
@@ -2410,11 +3047,11 @@ class EnigmaChannelSelectionScreen(Screen):
         Clock.schedule_once(self._restore_subinfo_color, 2.05)
 
     def _restore_subinfo_color(self, dt):
-        if time.monotonic() >= self._toast_until - 0.05:
+        if time.monotonic() >= self._toast_until - 0.05 and not self._lbtn_focus:
             self.subinfo_lbl.color = C_MUTED
 
     def _poll_vlc_status(self, dt):
-        if time.monotonic() < self._toast_until:
+        if time.monotonic() < self._toast_until or self._lbtn_focus:
             return
         st = self.video_backend.get_status()
         if not st:
@@ -2427,7 +3064,7 @@ class EnigmaChannelSelectionScreen(Screen):
                 ch_name = it.get("name", "") if it else ""
             mode_tag = "PIP:E2" if self._get_pig_mode() == "enigma2" else "PIP:Auto"
             self.subinfo_lbl.color = C_MUTED
-            self.subinfo_lbl.text = f"{st} • {ch_name} ({mode_tag})  |  [OK] Pełny ekran  |  [◄] Menu"
+            self.subinfo_lbl.text = f"{st} • {ch_name} ({mode_tag})  |  [OK] Pełny ekran  |  [◄] Menu  |  [2×◄] Pasek"
 
     def _stream_url_for(self, sref):
         parts = sref.split(":", 10)
@@ -2437,7 +3074,16 @@ class EnigmaChannelSelectionScreen(Screen):
             if dec.startswith(("http://", "https://", "rtsp://", "rtmp://")):
                 return dec
         cfg = App.get_running_app().config_data
-        return f"http://{cfg.get('ip')}:{cfg.get('stream_port', '8001')}/{sref}"
+        ip = cfg.get("ip", "")
+        sport = cfg.get("stream_port", "8001")
+        if cfg.get("stream_auth", False):
+            u = (cfg.get("username", "") or "").strip()
+            p = cfg.get("password", "") or ""
+            if u or p:
+                u_q = urllib.parse.quote(u, safe="")
+                p_q = urllib.parse.quote(p, safe="")
+                return f"http://{u_q}:{p_q}@{ip}:{sport}/{sref}"
+        return f"http://{ip}:{sport}/{sref}"
 
     def _is_iptv_sref(self, sref):
         parts = sref.split(":", 10)
@@ -2464,7 +3110,8 @@ class EnigmaChannelSelectionScreen(Screen):
             self._start_pig_for_item(it, save_last=True)
 
     def _build_infobar_data(self, item):
-        sref, name = item["sref"], item["name"]
+        sref = item["sref"]
+        name = clean_epg_text(item["name"], single_line=True)
         num = item.get("num", "")
         ch_title = f"{num}. {name}" if num else name
 
@@ -2484,7 +3131,7 @@ class EnigmaChannelSelectionScreen(Screen):
         now_time = now_title = ""
         now_begin = now_dur = 0
         if now_ev and now_ev.get("title"):
-            now_title = now_ev.get("title", "")
+            now_title = clean_epg_text(now_ev.get("title", ""), single_line=True)
             now_begin = int(now_ev.get("begin_timestamp") or 0)
             now_dur = int(now_ev.get("duration_sec") or 0)
             if now_begin > 0 and now_dur > 0:
@@ -2492,7 +3139,7 @@ class EnigmaChannelSelectionScreen(Screen):
 
         next_time = next_title = next_dur_text = ""
         if next_ev and next_ev.get("title"):
-            next_title = next_ev.get("title", "")
+            next_title = clean_epg_text(next_ev.get("title", ""), single_line=True)
             nb = int(next_ev.get("begin_timestamp") or 0)
             nd = int(next_ev.get("duration_sec") or 0)
             if nb > 0 and nd > 0:
@@ -2561,7 +3208,7 @@ class EnigmaChannelSelectionScreen(Screen):
             return
         self._epg_b_req += 1
         rid = self._epg_b_req
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         bref_q = urllib.parse.quote(b_ref, safe="")
         url_now = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnow?bRef={bref_q}"
         url_next = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnext?bRef={bref_q}"
@@ -2570,9 +3217,9 @@ class EnigmaChannelSelectionScreen(Screen):
             evs_now, evs_next = [], []
             for url, out in ((url_now, evs_now), (url_next, evs_next)):
                 try:
-                    req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+                    req = make_webif_request(url, cfg=cfg)
                     with urllib.request.urlopen(req, timeout=6) as r:
-                        out.extend(json.loads(r.read().decode("utf-8")).get("events", []))
+                        out.extend(clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", [])))
                 except Exception:
                     pass
             Clock.schedule_once(lambda dt: self._apply_epg_bouquet(rid, evs_now, evs_next))
@@ -2606,14 +3253,14 @@ class EnigmaChannelSelectionScreen(Screen):
             return self._render_left_epg(self.epg_now.get(sref), self.epg_service_cache[sref])
         self._epg_s_req += 1
         rid = self._epg_s_req
-        cfg = App.get_running_app().config_data
+        cfg = dict(App.get_running_app().config_data)
         url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(sref, safe='')}"
 
         def worker():
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+                req = make_webif_request(url, cfg=cfg)
                 with urllib.request.urlopen(req, timeout=5) as r:
-                    evs = json.loads(r.read().decode("utf-8")).get("events", [])
+                    evs = clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", []))
                 Clock.schedule_once(lambda dt: self._apply_epg_service(rid, sref, evs))
             except Exception:
                 pass
@@ -2635,8 +3282,8 @@ class EnigmaChannelSelectionScreen(Screen):
             upcoming = [e for e in service_events if (e.get("begin_timestamp") or 0) > cb][:len(self.upcoming_lbls)]
 
         if cur and cur.get("title"):
-            self.epg_title_lbl.text = cur.get("title", "")
-            desc = (cur.get("longdesc") or cur.get("shortdesc") or "").strip().replace("\n", " ")
+            self.epg_title_lbl.text = clean_epg_text(cur.get("title", ""), single_line=True)
+            desc = clean_epg_text(cur.get("longdesc") or cur.get("shortdesc") or "", single_line=True)
             self.epg_desc_lbl.text = desc or "Brak szczegółowego opisu audycji."
             b, d = cur.get("begin_timestamp") or 0, cur.get("duration_sec") or 0
             if b > 0 and d > 0:
@@ -2647,20 +3294,68 @@ class EnigmaChannelSelectionScreen(Screen):
                 self.main_progress.set_progress(0.0, visible=False)
         else:
             self.epg_title_lbl.text = "Brak danych EPG"
-            self.epg_desc_lbl.text = "Wciśnij OK dla pełnego ekranu lub LEWO dla menu (PIP / EPG / Bukiety)."
+            self.epg_desc_lbl.text = "OK = pełny ekran  |  ◄ = Menu & Bukiety  |  2×◄ = EPG / MENU / EXIT"
             self.epg_start_lbl.text = self.epg_end_lbl.text = ""
             self.main_progress.set_progress(0.0, visible=False)
 
         for i, lbl in enumerate(self.upcoming_lbls):
             if i < len(upcoming):
                 ev = upcoming[i]
-                lbl.text = f"[color=#D5DCE4]{fmt_epg_time(ev.get('begin_timestamp'))}[/color]  [color=#48BF84]{escape_markup(ev.get('title', ''))}[/color]"
+                up_t = clean_epg_text(ev.get("title", ""), single_line=True)
+                lbl.text = f"[color=#D5DCE4]{fmt_epg_time(ev.get('begin_timestamp'))}[/color]  [color=#48BF84]{escape_markup(up_t)}[/color]"
             else:
                 lbl.text = ""
 
+    def _delayed_open_bouquet(self, dt):
+        self._left_timer = None
+        self.open_bouquet_modal()
+
     def handle_dpad(self, key):
         if self.active_modal:
+            if key == 276 and (time.monotonic() - getattr(self.active_modal, "opened_at", 0.0)) <= 0.35:
+                self.active_modal.dismiss()
+                self._enter_lbtn_focus(0)
+                return True
+            if key == ord("r"):
+                self.active_modal.dismiss()
+                return True
             return self.active_modal.handle_key(key)
+
+        if self._lbtn_focus:
+            if key == 276:
+                self._lbtn_idx = (self._lbtn_idx - 1) % len(self._lbtn_widgets)
+                self._refresh_lbtn_focus()
+                return True
+            if key == 275:
+                self._lbtn_idx = (self._lbtn_idx + 1) % len(self._lbtn_widgets)
+                self._refresh_lbtn_focus()
+                return True
+            if key in (13, 271, 23):
+                fn = self._lbtn_actions[self._lbtn_idx]
+                self._exit_lbtn_focus()
+                fn()
+                return True
+            if key in (273, 274, 27):
+                self._exit_lbtn_focus()
+                return True
+            if key in (ord("r"), ord("g"), ord("y"), ord("b")):
+                self._exit_lbtn_focus()
+            else:
+                return True
+
+        if key == 276:
+            if self._left_timer is not None:
+                self._left_timer.cancel()
+                self._left_timer = None
+                self._enter_lbtn_focus(0)
+            else:
+                self._left_timer = Clock.schedule_once(self._delayed_open_bouquet, 0.24)
+            return True
+
+        if self._left_timer is not None:
+            self._left_timer.cancel()
+            self._left_timer = None
+
         if key == 273:
             self.move_selection(-1)
             return True
@@ -2673,17 +3368,23 @@ class EnigmaChannelSelectionScreen(Screen):
         if key == 280:
             self.move_selection(-self.VISIBLE_ROWS)
             return True
-        if key == 276:
-            self.open_bouquet_modal()
-            return True
         if key == 27:
             self.show_exit_hint()
             return True
         if key in (13, 271, 23):
             self.play_selected_fullscreen()
             return True
+        if key == ord("r"):
+            self.open_bouquet_modal()
+            return True
+        if key == ord("g"):
+            self.load_bouquets()
+            return True
         if key == ord("y"):
             self.preview_selected_in_pig()
+            return True
+        if key == ord("b"):
+            self.open_settings()
             return True
         if key == ord("e"):
             App.get_running_app().open_epg_from("main")
@@ -2703,7 +3404,8 @@ class EnigmaTVApp(App):
         self.picon_manager = PiconManager(os.path.join(self.user_data_dir, "picons_cache"))
         self.video_backend = AndroidLibVLCBackend() if platform == "android" else DesktopVLCBackend()
 
-        sm = ScreenManager(transition=FadeTransition(duration=0.14))
+        # NoTransition eliminuje czarny ekran FBO przy przejściu Fullscreen TextureView <-> EPG
+        sm = ScreenManager(transition=NoTransition())
         self.settings_screen = SettingsScreen(self.video_backend, name="settings")
         self.main_screen = EnigmaChannelSelectionScreen(self.video_backend, self.picon_manager, name="main")
         self.player_screen = FullscreenPlayerScreen(self.video_backend, name="player")
@@ -2737,12 +3439,14 @@ class EnigmaTVApp(App):
         b_ref = ""
         if self.main_screen.bouquets:
             b_ref = self.main_screen.bouquets[self.main_screen.bouquet_idx].get("servicereference", "")
+        initial_now = self.main_screen.epg_now.get(ch.get("sref", ""))
         self.epg_screen.open_for_channel(
             channel_item=ch,
             bouquet_items=self.main_screen.items,
             bouquet_ref=b_ref,
             return_screen=source_screen,
             start_mode="single",
+            initial_now_ev=initial_now,
         )
         self.root.current = "epg"
 
@@ -2785,13 +3489,13 @@ class EnigmaTVApp(App):
         elif kc == 165:
             nkey = ord("1") if self.root.current == "epg" else ord("e")
         elif kc == 183:
-            nkey = ord("1")
+            nkey = ord("1") if self.root.current == "epg" else ord("r")
         elif kc == 184:
-            nkey = ord("2")
+            nkey = ord("2") if self.root.current == "epg" else ord("g")
         elif kc == 185:
             nkey = ord("3") if self.root.current == "epg" else ord("y")
         elif kc == 186:
-            nkey = ord("4")
+            nkey = ord("4") if self.root.current == "epg" else ord("b")
         elif kc == 222:
             nkey = ord("a")
         elif kc == 175:
@@ -2818,8 +3522,16 @@ class EnigmaTVApp(App):
             self.video_backend.stop()
             self.stop()
 
+    def _can_double_back_exit(self):
+        cur = self.root.current
+        if cur == "main":
+            return (not self.main_screen.active_modal) and (not self.main_screen._lbtn_focus)
+        if cur == "settings":
+            return (self.settings_screen.zone == "fields") and (not self.settings_screen._has_saved_ip())
+        return False
+
     def _route_key(self, nkey, codepoint=""):
-        if nkey == 27:
+        if nkey == 27 and self._can_double_back_exit():
             now = time.monotonic()
             if now - self._last_back_ts <= 1.8:
                 self.exit_application()
@@ -2863,12 +3575,16 @@ class EnigmaTVApp(App):
         self.config_data.update(kwargs)
         self._write_config_file()
 
-    def save_config(self, ip, web_port, stream_port, picon_dir, pig_mode=None):
+    def save_config(self, ip, web_port, stream_port, picon_dir, pig_mode=None,
+                    username="", password="", stream_auth=False):
         self.config_data.update({
             "ip": ip,
             "web_port": web_port,
             "stream_port": stream_port,
             "picon_dir": picon_dir,
+            "username": username,
+            "password": password,
+            "stream_auth": bool(stream_auth),
         })
         if pig_mode is not None:
             self.config_data["pig_mode"] = pig_mode

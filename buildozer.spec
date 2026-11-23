@@ -4,8 +4,8 @@ package.name = enigma2tv
 package.domain = pl.dom.enigma
 source.dir = .
 source.include_exts = py,png,jpg,kv,atlas
-source.exclude_dirs = venv, tests, bin, .buildozer, .git, backup_v1.0, backup_v1.1, backup_v1.2, backup_v., screenshots, .github
-version = 1.2
+source.exclude_dirs = venv, tests, bin, .buildozer, .git, backup_v1.0, backup_v1.1, backup_v1.2, backup_v., screenshots, .github, backup_v1.3
+version = 1.3
 
 requirements = python3,kivy,pyjnius
 icon.filename = %(source.dir)s/icon.png
