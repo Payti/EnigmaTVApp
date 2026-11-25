@@ -27,11 +27,26 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 | :---: | :---: |
 | ![Wybór ścieżki Audio i Napisów](screenshots/05_audio_sub.png) | ![Przewodnik EPG](screenshots/06_epg.png) |
 
+| Wskaźnik E2iPlayer | Obsługa kanału zakodowanego |
+| :---: | :---: |
+| ![Wskaźnik E2iPlayer](screenshots/08_e2iplayer.png) | ![Kanał zakodowany](screenshots/09_encrypted.png) |
+
 | Odtwarzanie kanału 4K UHD (H.265/HEVC) |
 | :---: |
 | ![Odtwarzanie kanału 4K UHD](screenshots/07_4k.png) |
 
 ---
+
+## Co nowego w v1.4
+
+* **Aktualizacja aplikacji (OTA) z GitHuba:** sprawdzanie nowych wydań, pobieranie pliku `.apk` z paskiem postępu i uruchamianie systemowego instalatora Android TV (`FileProvider` / `PackageInstaller`) bezpośrednio z menu aplikacji przy użyciu pilota. Po restarcie nowej wersji pobrany plik `update.apk` jest automatycznie usuwany z pamięci telewizora.
+* **Stały podpis APK (aktualizacja bez utraty danych):** wszystkie wydania budowane przez GitHub Actions korzystają z tego samego certyfikatu podpisywania, weryfikowanego automatycznie przez `apksigner` przed publikacją. Aktualizacja nadpisuje aplikację w miejscu z pełnym zachowaniem konfiguracji (`enigma_config.json`) i pamięci podręcznej pikon (`picons_cache`), bez odinstalowywania i bez użycia `adb`.
+* **Wskaźnik aktywnego E2iPlayer:** wyraźna sygnalizacja na ekranie, gdy dekoder Enigma2 odtwarza materiał w E2iPlayer, ułatwiająca szybką orientację w stanie odbiornika.
+* **Obsługa kanałów zakodowanych:** czytelna informacja na ekranie przy próbie uruchomienia zakodowanego strumienia zamiast pustego, czarnego obrazu.
+* **Poprawki pikon i stabilności:** usprawnione wyszukiwanie i wyświetlanie pikon oraz zwiększona stabilność odtwarzania i automatycznego budowania paczek.
+
+<details>
+<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.2)</strong></summary>
 
 ## Co nowego w v1.3
 
@@ -40,9 +55,6 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 - **Przełączana klawiatura ekranowa TV** — tryby **`123`**, **`abc`**, **`ABC`** oraz **`#@!`** (ze znakami `/`, `_`, `-`, `.` i spacją) obsługiwane pilotem dla pól IP, użytkownika, hasła i własnej ścieżki pikon.
 - **Rozbudowana obsługa pilota** — podwójne szybkie **`◄` (Lewo)** na liście kanałów i w EPG przenosi fokus na przyciski **`EPG` / `MENU` / `EXIT`**; oprogramowano wszystkie 4 kolorowe przyciski na liście kanałów (**Czerwony** – Bukiety/Menu, **Zielony** – Odśwież, **Żółty** – Podgląd PIP, **Niebieski** – Ustawienia IP).
 - **Poprawne dekodowanie znaków w EPG i Infobarze** — dekodowanie encji HTML (`&quot;`, `&amp;`, `&#39;`, `&nbsp;` itd.), znaczników `<br>` oraz znaków sterujących DVB w tytułach, opisach i nazwach kanałów.
-
-<details>
-<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.2)</strong></summary>
 
 ### v1.2
 - **Dwa tryby podglądu PIP (PIG) na liście kanałów** — dodano wybór między trybem *Enigma2 (ostatni oglądany)* (chodzenie po liście i zmiana bukietów nie przerywa podglądu) oraz *Auto (podąża za kursorem)* (automatyczny podgląd po ok. 1 s postoju na kanale).
