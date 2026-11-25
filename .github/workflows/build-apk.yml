@@ -61,12 +61,24 @@ jobs:
 
       - name: Configure Gradle properties
         run: |
-          mkdir -p "$HOME/.gradle"
+          mkdir -p "$HOME/.gradle/init.d"
           if [ -f p4a_patches/gradle.properties ]; then
             cp -a p4a_patches/gradle.properties "$HOME/.gradle/gradle.properties"
           else
             printf "org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g\norg.gradle.daemon=false\n" > "$HOME/.gradle/gradle.properties"
           fi
+          cat << 'EOF' > "$HOME/.gradle/init.d/maven-mirror.gradle"
+          gradle.beforeProject { project ->
+              project.buildscript.repositories {
+                  google()
+                  maven { url = "https://maven-central.storage-download.googleapis.com/maven2" }
+              }
+              project.repositories {
+                  google()
+                  maven { url = "https://maven-central.storage-download.googleapis.com/maven2" }
+              }
+          }
+          EOF
 
       - name: Restore persistent Android debug keystore
         env:
@@ -74,12 +86,17 @@ jobs:
         run: |
           if [ -n "$ANDROID_DEBUG_KEYSTORE_B64" ]; then
             mkdir -p "$HOME/.android"
-            printf '%s' "$ANDROID_DEBUG_KEYSTORE_B64" | tr -d '\r\n ' | base64 -d > "$HOME/.android/debug.keystore"
+            printf '%s' "$ANDROID_DEBUG_KEYSTORE_B64" | tr -d '[:space:]' | base64 -d > "$HOME/.android/debug.keystore"
             chmod 600 "$HOME/.android/debug.keystore"
+            echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"
+            if [ -n "${XDG_CONFIG_HOME:-}" ]; then
+              mkdir -p "$XDG_CONFIG_HOME/.android"
+              cp -a "$HOME/.android/debug.keystore" "$XDG_CONFIG_HOME/.android/debug.keystore"
+            fi
             echo "Restored persistent debug.keystore:"
             keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:"
           else
-            echo "WARNING: ANDROID_DEBUG_KEYSTORE_B64 secret is not set; Gradle will generate an ephemeral debug.keystore."
+            echo "WARNING: ANDROID_DEBUG_KEYSTORE_B64_ZALMAN_VM secret is not set; Gradle will generate an ephemeral debug.keystore."
           fi
 
       - name: Sync version in buildozer.spec with Git tag
@@ -105,6 +122,23 @@ jobs:
           rm -rf .buildozer/android/platform/build-*/build/venv
           buildozer -v android debug
           ls -lh bin/*.apk
+
+      - name: Verify APK signature
+        run: |
+          APKSIGNER=$(find "$HOME/.buildozer/android/platform/android-sdk/build-tools" -name apksigner | sort -V | tail -n 1)
+          APK=$(ls bin/*.apk | head -n 1)
+          echo "Verifying signature of $APK using $APKSIGNER"
+          "$APKSIGNER" verify --print-certs "$APK" | grep -E "Signer|SHA-256"
+          if [ -f "$HOME/.android/debug.keystore" ]; then
+            EXPECTED=$(keytool -list -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey | awk '/SHA256:/ {gsub(/:/,"",$2); print tolower($2); exit}')
+            ACTUAL=$("$APKSIGNER" verify --print-certs "$APK" | awk '/certificate SHA-256 digest:/ {print tolower($NF); exit}')
+            echo "Expected SHA-256: $EXPECTED"
+            echo "Actual   SHA-256: $ACTUAL"
+            if [ "$EXPECTED" != "$ACTUAL" ]; then
+              echo "ERROR: APK signature does not match restored debug.keystore!"
+              exit 1
+            fi
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v6
