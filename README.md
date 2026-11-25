@@ -170,6 +170,20 @@ adb disconnect <IP_TELEWIZORA>:5555
 
 ---
 
+### Aktualizacja aplikacji z poziomu pilota (OTA)
+
+Po zainstalowaniu wersji **v1.3 lub nowszej** nie trzeba już używać komputera ani `adb` — kolejne wydania można instalować bezpośrednio z ekranu telewizora:
+
+1. Otwórz menu w aplikacji **Enigma2 TV** i wybierz **Aktualizacja aplikacji z GitHub**.
+2. Jeśli na GitHubie jest nowsze wydanie, potwierdź pobranie i poczekaj, aż pasek postępu dojdzie do `100%`.
+3. **Jednorazowe uprawnienie (przy pierwszej aktualizacji):** Android TV poprosi o zgodę na instalowanie aplikacji z nieznanych źródeł. Wybierz **Ustawienia** (lub ręcznie: *Ustawienia → Aplikacje → Specjalny dostęp do aplikacji → Instalowanie nieznanych aplikacji*), włącz przełącznik dla **Enigma2 TV** i wróć do instalatora.
+4. W systemowym oknie instalatora Android TV zatwierdź **Zainstaluj** (lub **Aktualizuj**).
+5. Po zakończeniu uruchom aplikację ponownie — cała konfiguracja (`enigma_config.json`) i pamięć podręczna pikon (`picons_cache`) zostaną zachowane, a tymczasowy plik `update.apk` usunie się automatycznie przy starcie nowej wersji.
+
+> **Uwaga przy aktualizacji ze starszych wersji (sprzed v1.3):** jeśli instalator zgłosi błąd podpisu (*Aplikacja nie została zainstalowana*), odinstaluj jednorazowo starą wersję i zainstaluj aktualny plik `.apk` z zakładki **Releases** — wszystkie kolejne wydania budowane w GitHub Actions korzystają już z tego samego stałego certyfikatu.
+
+---
+
 ## Budowanie ze źródeł
 
 Projekt buduje się automatycznie w **GitHub Actions** (`.github/workflows/build-apk.yml`) po wypchnięciu tagu `v*` lub ręcznym uruchomieniu workflow, a także lokalnie przez Buildozer:
