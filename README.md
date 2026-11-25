@@ -130,14 +130,14 @@ Zaakceptuj na ekranie telewizora komunikat **Zezwolić na debugowanie USB?** (*Z
 
 ```bash
 adb devices
-adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk
 adb disconnect <IP_TELEWIZORA>:5555
 ```
 
 #### Krok 2b: Instalacja z komputera Windows (ADB / Platform-Tools)
 
 1. Pobierz oficjalną paczkę **SDK Platform-Tools for Windows** ze strony Google: [platform-tools-latest-windows.zip](https://dl.google.com/android/repository/platform-tools-latest-windows.zip).
-2. Rozpakuj archiwum do prostego katalogu, np. `C:\adb` (lub `C:\platform-tools`), i skopiuj do tego samego folderu pobrany plik `enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk`.
+2. Rozpakuj archiwum do prostego katalogu, np. `C:\adb` (lub `C:\platform-tools`), i skopiuj do tego samego folderu pobrany plik `enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk`.
 3. Otwórz **Wiersz poleceń (`cmd`)** w tym folderze (w pasku adresu Eksploratora Windows wpisz `cmd` i naciśnij `Enter`).
 4. Połącz się z telewizorem:
 
@@ -150,7 +150,7 @@ adb connect <IP_TELEWIZORA>:5555
 
 ```cmd
 adb devices
-adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.3-armeabi-v7a_arm64-v8a-debug.apk
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk
 adb disconnect <IP_TELEWIZORA>:5555
 ```
 

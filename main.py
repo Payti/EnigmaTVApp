@@ -38,7 +38,7 @@ if platform not in ("android", "ios"):
     Window.minimum_width = 960
     Window.minimum_height = 540
 
-APP_VERSION = "1.3"
+APP_VERSION = "1.4"
 
 DEFAULT_PICON_DIR = "/usr/share/enigma2/picon"
 PICON_PRESETS = [
