@@ -630,11 +630,6 @@ public class TvVlcController {
         buildTrackMenuUi(activity, content);
     }
 
-    /**
-     * Czyści wewnętrzny cache mNativeTracks w org.videolan.libvlc.Media (LibVLC 3.x cache'uje
-     * pierwszy wynik z momentów gdy MPEG-TS PMT nie ma jeszcze wymiarów width/height)
-     * i wymusza świeży odczyt z natywnego libvlc_media_tracks_get().
-     */
     private static IMedia.Track[] getFreshTracks(IMedia m) {
         if (m == null) return null;
         try {
@@ -1798,8 +1793,37 @@ def _patch_manifest(manifest_file):
             count=1,
         )
 
+    if "androidx.core.content.FileProvider" not in text:
+        provider_xml = '''
+    <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.fileprovider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+        <meta-data
+            android:name="android.support.FILE_PROVIDER_PATHS"
+            android:resource="@xml/file_paths" />
+    </provider>
+'''
+        text = text.replace("</application>", provider_xml + "</application>")
+
     manifest_file.write_text(text, encoding="utf-8")
-    print(f"[HOOK] Zaktualizowano manifest dla Android TV: {manifest_file}")
+    print(f"[HOOK] Zaktualizowano manifest dla Android TV + APK Update: {manifest_file}")
+
+
+def _create_file_paths(dist_dir):
+    xml_dir = dist_dir / "src" / "main" / "res" / "xml"
+    xml_dir.mkdir(parents=True, exist_ok=True)
+    file_paths = xml_dir / "file_paths.xml"
+    content = '''<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="cache" path="." />
+    <files-path name="files" path="." />
+    <external-files-path name="external_files" path="." />
+</paths>
+'''
+    file_paths.write_text(content, encoding="utf-8")
+    print(f"[HOOK] Utworzono plik ścieżek dla FileProvider: {file_paths}")
 
 
 def _copy_banner(dist_dir):
@@ -1900,6 +1924,7 @@ def _slim_gradle(dist_dir):
 
 def before_apk_build(toolchain):
     dist_dir = Path(toolchain._dist.dist_dir)
+    _create_file_paths(dist_dir)
     for rel in ("templates/AndroidManifest.tmpl.xml", "src/main/AndroidManifest.xml"):
         mf = dist_dir / rel
         if mf.exists():
@@ -1909,6 +1934,10 @@ def before_apk_build(toolchain):
 
 def before_apk_assemble(toolchain):
     dist_dir = Path(toolchain._dist.dist_dir)
+    _create_file_paths(dist_dir)
+    mf = dist_dir / "src" / "main" / "AndroidManifest.xml"
+    if mf.exists():
+        _patch_manifest(mf)
     _copy_banner(dist_dir)
     _patch_python_activity(dist_dir)
     _write_tv_vlc_controller(dist_dir)

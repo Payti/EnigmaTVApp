@@ -6,6 +6,7 @@ import json
 import os
 import re
 import shutil
+import ssl
 import subprocess
 import threading
 import time
@@ -18,7 +19,7 @@ from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.image import Image as CoreImage
 from kivy.core.window import Window
-from kivy.graphics import Color, Line, Rectangle, RoundedRectangle
+from kivy.graphics import Color, Ellipse, Line, Rectangle, RoundedRectangle
 from kivy.graphics.texture import Texture
 from kivy.metrics import dp, sp
 from kivy.uix.behaviors import ButtonBehavior
@@ -54,6 +55,22 @@ PIG_MODES = [
 
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x85\x88\x89\x8b-\x9f]")
 _HTML_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
+
+
+def _urlopen_https(req, timeout=10):
+    """Bezpieczne HTTPS na Androidzie (fallback przy braku certyfikatów CA w p4a)."""
+    try:
+        import certifi
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        ctx = ssl.create_default_context()
+    try:
+        return urllib.request.urlopen(req, timeout=timeout, context=ctx)
+    except (ssl.SSLError, urllib.error.URLError) as err:
+        reason = getattr(err, "reason", err)
+        if isinstance(err, ssl.SSLError) or isinstance(reason, ssl.SSLError) or "certificate" in str(err).lower():
+            return urllib.request.urlopen(req, timeout=timeout, context=ssl._create_unverified_context())
+        raise
 
 
 def clean_epg_text(val, single_line=False):
@@ -105,6 +122,23 @@ def clean_services(services):
     return services or []
 
 
+def is_e2iplayer_sref(sref):
+    """Wykrywa wtyczkowy format strumienia E2iPlayer w ServiceReference (bez dekodowania base64)."""
+    if not sref:
+        return False
+    parts = sref.split(":", 10)
+    if len(parts) < 11:
+        return False
+    tail = parts[10]
+    if not tail:
+        return False
+    uri_part = tail.split(":", 1)[0]
+    low = uri_part.lower()
+    if "e2iplayer%3a//" in low or "e2iplayer://" in low:
+        return True
+    return "e2iplayer://" in urllib.parse.unquote(uri_part).lower()
+
+
 def pig_mode_label(mode_key):
     for k, lbl in PIG_MODES:
         if k == mode_key:
@@ -142,6 +176,9 @@ C_MUTED = (0.48, 0.52, 0.58, 1)
 C_SEL_BG = (0.12, 0.14, 0.18, 0.95)
 C_FOCUS_BG = (0.12, 0.34, 0.54, 0.98)
 C_ERROR = (0.95, 0.35, 0.35, 1)
+C_KEY_RED = (0.94, 0.22, 0.24, 1)
+C_KEY_RED_DIM = (0.94, 0.22, 0.24, 0.14)
+C_KEY_RED_RING = (0.94, 0.22, 0.24, 0.52)
 
 PL_DAYS = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 PL_MONTHS = [
@@ -575,6 +612,233 @@ class EnigmaFrame(BoxLayout):
         self._bd_line.rounded_rectangle = (self.x, self.y, self.width, self.height, self._r)
 
 
+class RedKeyIcon(Widget):
+    """Wektorowa grafika czerwonego klucza (mała na liście, większa w oknie/PIP)."""
+    def __init__(self, glow=False, **kwargs):
+        super().__init__(**kwargs)
+        self._glow = glow
+        with self.canvas:
+            if glow:
+                self._halo_col = Color(*C_KEY_RED_DIM)
+                self._halo_fill = Ellipse(pos=self.pos, size=(0, 0))
+                self._halo_bd_col = Color(*C_KEY_RED_RING)
+                self._halo_bd = Line(circle=(0, 0, 1), width=dp(1.4))
+            else:
+                self._halo_fill = None
+                self._halo_bd = None
+            self._key_col = Color(*C_KEY_RED)
+            self._bow = Line(circle=(0, 0, 1), width=dp(1.3))
+            self._shaft = RoundedRectangle(pos=self.pos, size=(0, 0), radius=[dp(2)])
+            self._tooth1 = RoundedRectangle(pos=self.pos, size=(0, 0), radius=[dp(1)])
+            self._tooth2 = RoundedRectangle(pos=self.pos, size=(0, 0), radius=[dp(1)])
+        self.bind(pos=self._redraw, size=self._redraw)
+
+    def _redraw(self, *args):
+        w, h = self.width, self.height
+        if w < 4 or h < 4:
+            if self._halo_fill is not None:
+                self._halo_fill.size = (0, 0)
+                self._halo_bd.circle = (0, 0, 0.1)
+            self._bow.circle = (0, 0, 0.1)
+            self._shaft.size = (0, 0)
+            self._tooth1.size = (0, 0)
+            self._tooth2.size = (0, 0)
+            return
+
+        if self._glow:
+            dia = min(w, h) * 0.94
+            self._halo_fill.pos = (self.center_x - dia / 2.0, self.center_y - dia / 2.0)
+            self._halo_fill.size = (dia, dia)
+            self._halo_bd.circle = (self.center_x, self.center_y, dia / 2.0)
+            avail_w = dia * 0.72
+            avail_h = dia * 0.46
+        else:
+            avail_w = w * 0.92
+            avail_h = h * 0.68
+
+        kw = min(avail_w, avail_h * 1.65)
+        kh = kw / 1.65
+        ox = self.center_x - kw / 2.0
+        oy = self.center_y - kh / 2.0
+
+        cx = ox + kw * 0.25
+        cy = oy + kh * 0.56
+        r_mid = max(dp(2.4), kh * 0.28)
+        stroke_half = max(dp(1.1), kh * 0.085)
+        self._bow.width = stroke_half
+        self._bow.circle = (cx, cy, r_mid)
+
+        sh = max(dp(2.2), stroke_half * 1.95)
+        sx = cx + r_mid + stroke_half * 0.30
+        ex = ox + kw * 0.96
+        sw = max(dp(2.0), ex - sx)
+        self._shaft.pos = (sx, cy - sh / 2.0)
+        self._shaft.size = (sw, sh)
+        self._shaft.radius = [sh / 2.0]
+
+        t1_w = max(dp(2.0), kw * 0.09)
+        t1_h = max(dp(3.0), kh * 0.32)
+        t1_x = ex - t1_w - kw * 0.04
+        t1_y = cy - sh / 2.0 - t1_h + sh * 0.25
+        self._tooth1.pos = (t1_x, t1_y)
+        self._tooth1.size = (t1_w, t1_h)
+        self._tooth1.radius = [max(dp(0.8), t1_w * 0.25)]
+
+        t2_w = max(dp(1.8), kw * 0.08)
+        t2_h = max(dp(2.2), kh * 0.22)
+        t2_x = t1_x - t2_w - kw * 0.075
+        t2_y = cy - sh / 2.0 - t2_h + sh * 0.25
+        self._tooth2.pos = (t2_x, t2_y)
+        self._tooth2.size = (t2_w, t2_h)
+        self._tooth2.radius = [max(dp(0.8), t2_w * 0.25)]
+
+
+class EncryptedStreamModal(ModalView):
+    """Okno informacyjne po włączeniu szyfrowanego kanału (format wtyczkowy E2iPlayer)."""
+    def __init__(self, channel_name="", **kwargs):
+        super().__init__(
+            size_hint=(0.55, None),
+            height=dp(430),
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            background_color=(0, 0, 0, 0.72),
+            **kwargs,
+        )
+        frame = EnigmaFrame(
+            bg=(0.032, 0.036, 0.052, 0.99),
+            border=C_KEY_RED,
+            radius=14,
+            lw=1.6,
+            orientation="vertical",
+            padding=(dp(24), dp(24)),
+            spacing=dp(10),
+        )
+        frame.add_widget(make_label(
+            "STREAMING SZYFROWANY", 13, C_KEY_RED, halign="center", bold=True,
+            size_hint_y=None, height=dp(20), shorten=False,
+        ))
+        
+        # Dodatkowy odstęp, aby aureola klucza nie nachodziła na napis
+        frame.add_widget(Widget(size_hint_y=None, height=dp(4)))
+        
+        icon_wrap = BoxLayout(size_hint_y=None, height=dp(116))
+        icon_wrap.add_widget(Widget())
+        icon_wrap.add_widget(RedKeyIcon(glow=True, size_hint=(None, None), size=(dp(110), dp(110))))
+        icon_wrap.add_widget(Widget())
+        frame.add_widget(icon_wrap)
+        
+        ch_clean = clean_epg_text(channel_name, single_line=True)
+        if ch_clean:
+            frame.add_widget(make_label(
+                ch_clean, 17.5, C_WHITE, halign="center", bold=True,
+                size_hint_y=None, height=dp(26),
+            ))
+        frame.add_widget(make_label(
+            "Ten streaming jest szyfrowany", 16, C_KEY_RED, halign="center", bold=True,
+            size_hint_y=None, height=dp(24), shorten=False,
+        ))
+        frame.add_widget(make_label(
+            "Kanał w formacie wtyczki E2iPlayer nie jest obsługiwany bezpośrednio.",
+            13, C_GRAY, halign="center", valign="top", shorten=False,
+            size_hint_y=None, height=dp(20),
+        ))
+        
+        frame.add_widget(Widget(size_hint_y=None, height=dp(10)))
+        
+        btn_wrap = BoxLayout(size_hint_y=None, height=dp(44), padding=(dp(60), 0))
+        ok_btn = PillButton(text="OK — Zamknij", accent=C_KEY_RED, font_size=14)
+        ok_btn.set_tv_focus(True, danger=True)
+        ok_btn.bind(on_release=lambda *a: self.dismiss())
+        btn_wrap.add_widget(ok_btn)
+        frame.add_widget(btn_wrap)
+        self.add_widget(frame)
+
+    def handle_key(self, key):
+        if key in (13, 271, 23, 27):
+            self.dismiss()
+            return True
+        return True
+
+
+class UpdateConfirmModal(ModalView):
+    """Okno pytające o zgodę na aktualizację aplikacji (pełna obsługa pilota)."""
+    def __init__(self, new_version, on_confirm, **kwargs):
+        super().__init__(
+            size_hint=(0.56, None),
+            height=dp(300),
+            pos_hint={"right": 0.97, "center_y": 0.5},
+            background_color=(0, 0, 0, 0.55),
+            **kwargs,
+        )
+        self.on_confirm = on_confirm
+        self.sel_idx = 0
+
+        frame = EnigmaFrame(
+            bg=(0.032, 0.036, 0.052, 0.99),
+            border=C_CYAN,
+            radius=14,
+            lw=1.6,
+            orientation="vertical",
+            padding=(dp(24), dp(20)),
+            spacing=dp(12),
+        )
+        frame.add_widget(make_label(
+            "DOSTĘPNA AKTUALIZACJA", 18, C_CYAN, halign="center", bold=True,
+            size_hint_y=None, height=dp(30), shorten=False,
+        ))
+        frame.add_widget(make_label(
+            f"Nowa wersja: v{new_version}\nObecna wersja: v{APP_VERSION}",
+            15, C_WHITE, halign="center", bold=True,
+            size_hint_y=None, height=dp(50), shorten=False,
+        ))
+        frame.add_widget(make_label(
+            "Czy chcesz pobrać i zainstalować aktualizację?",
+            14, C_GRAY, halign="center",
+            size_hint_y=None, height=dp(28), shorten=False,
+        ))
+        frame.add_widget(Widget(size_hint_y=1))
+
+        btn_row = BoxLayout(size_hint_y=None, height=dp(44), spacing=dp(16), padding=(dp(24), 0))
+        self.btn_yes = PillButton(text="Aktualizuj", accent=C_MINT, font_size=14.5)
+        self.btn_yes.bind(on_release=lambda *a: self._confirm())
+        self.btn_no = PillButton(text="Anuluj", accent=C_MUTED, font_size=14.5)
+        self.btn_no.bind(on_release=lambda *a: self.dismiss())
+        btn_row.add_widget(self.btn_yes)
+        btn_row.add_widget(self.btn_no)
+        frame.add_widget(btn_row)
+
+        frame.add_widget(make_label(
+            "◄► wybór  •  OK zatwierdź  •  WSTECZ anuluj",
+            11.5, C_MUTED, halign="center", size_hint_y=None, height=dp(18), shorten=False,
+        ))
+        self.add_widget(frame)
+        self._refresh_focus()
+
+    def _refresh_focus(self):
+        self.btn_yes.set_tv_focus(self.sel_idx == 0)
+        self.btn_no.set_tv_focus(self.sel_idx == 1)
+
+    def _confirm(self):
+        self.dismiss()
+        if self.on_confirm:
+            self.on_confirm()
+
+    def handle_key(self, key):
+        if key in (275, 276):
+            self.sel_idx = 1 - self.sel_idx
+            self._refresh_focus()
+            return True
+        if key in (13, 271, 23):
+            if self.sel_idx == 0:
+                self._confirm()
+            else:
+                self.dismiss()
+            return True
+        if key == 27:
+            self.dismiss()
+            return True
+        return True
+
+
 class GradientProgressBar(Widget):
     def __init__(self, framed=True, **kwargs):
         super().__init__(**kwargs)
@@ -909,10 +1173,31 @@ class PiconManager:
                 cleaned = sref.strip().rstrip(":").replace(":", "_")
                 if cleaned:
                     names.append(cleaned)
+        
         if channel_name:
-            snp = re.sub(r"[^a-z0-9]+", "", channel_name.lower().replace("+", "plus"))
-            if snp:
-                names.append(snp)
+            # Zastąpienie znaków specjalnych
+            cn_raw = channel_name.strip()
+            cn_raw = cn_raw.replace("&", "and").replace("+", "plus")
+            
+            # Translacja polskich i innych znaków
+            trans_map = str.maketrans(
+                "ąćęłńóśźżĄĆĘŁŃÓŚŹŻçÇñÑ",
+                "acelnoszzACELNOSZZcCnN"
+            )
+            cn_trans = cn_raw.translate(trans_map)
+            
+            # Czyszczenie (tylko litery i cyfry)
+            snp_trans = re.sub(r"[^a-zA-Z0-9]+", "", cn_trans).lower()
+            snp_raw = re.sub(r"[^a-zA-Z0-9]+", "", cn_raw).lower()
+            
+            # Dodawanie wariantów
+            for base in [snp_trans, snp_raw]:
+                if base:
+                    names.append(base)
+                    # Fallback bez "hd" na końcu
+                    if base.endswith("hd"):
+                        names.append(base[:-2])
+                        
         return list(dict.fromkeys(names))
 
     def get_cached_path(self, sref, channel_name=""):
@@ -1024,11 +1309,17 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
         self.bar_wrap.add_widget(self.progress)
         self.add_widget(self.bar_wrap)
 
-        self.picon_img = Image(size_hint_x=None, width=dp(48), allow_stretch=True, keep_ratio=True, opacity=0)
-        self.add_widget(self.picon_img)
+        self.picon_wrap = BoxLayout(size_hint_x=None, width=dp(48))
+        self.picon_img = Image(allow_stretch=True, keep_ratio=True, opacity=0)
+        self.picon_wrap.add_widget(self.picon_img)
+        self.add_widget(self.picon_wrap)
 
+        self.name_wrap = BoxLayout(orientation="horizontal", spacing=0, padding=(dp(6), 0, 0, 0))
+        self.key_icon = RedKeyIcon(glow=False, size_hint_x=None, width=0, opacity=0)
         self.text_lbl = make_label("", 15, markup=True)
-        self.add_widget(self.text_lbl)
+        self.name_wrap.add_widget(self.key_icon)
+        self.name_wrap.add_widget(self.text_lbl)
+        self.add_widget(self.name_wrap)
 
     def _redraw(self, *args):
         self._sel_rect.pos, self._sel_rect.size = self.pos, self.size
@@ -1040,33 +1331,50 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
         if not self.is_marker and self.current_sref:
             self.on_slot_click(self.slot_idx)
 
+    def _set_encrypted_icon(self, show):
+        if show:
+            self.key_icon.width = dp(22)
+            self.key_icon.opacity = 1
+            self.name_wrap.spacing = dp(6)
+        else:
+            self.key_icon.width = 0
+            self.key_icon.opacity = 0
+            self.name_wrap.spacing = 0
+
     def bind_empty(self):
         self.current_sref, self.is_marker = "", False
         self.num_lbl.text = self.text_lbl.text = ""
         self.progress.set_progress(0.0, visible=False)
+        self.picon_wrap.width, self.picon_wrap.opacity = 0, 0
         self.picon_img.texture, self.picon_img.opacity = None, 0
         self._set_selected(False)
+        self._set_encrypted_icon(False)
 
     def bind_marker(self, title):
         self.current_sref, self.is_marker = "", True
         self.num_lbl.text, self.num_lbl.width = "", dp(6)
         self.bar_wrap.width, self.bar_wrap.opacity = 0, 0
         self.progress.set_progress(0.0, visible=False)
-        self.picon_img.width, self.picon_img.opacity = 0, 0
+        self.picon_wrap.width, self.picon_wrap.opacity = 0, 0
+        self.picon_img.texture, self.picon_img.opacity = None, 0
         t = escape_markup(clean_epg_text(title, single_line=True))
         if not t.startswith("---"):
             t = f"--- {t} ---"
         self.text_lbl.text = f"[color=#66C7F5]»[/color]  [color=#B8C6D6][b]{t}[/b][/color]"
         self._set_selected(False)
+        self._set_encrypted_icon(False)
 
     def bind_channel(self, item, selected, epg_event, picon_manager, is_live=False):
         self.is_marker = False
         sref = item.get("sref", "")
         name = clean_epg_text(item.get("name", ""), single_line=True)
+        is_enc = bool(item.get("encrypted", False))
         self.current_sref = sref
-        self.num_lbl.width, self.bar_wrap.width, self.bar_wrap.opacity, self.picon_img.width = dp(42), dp(42), 1, dp(48)
+        self.num_lbl.width, self.bar_wrap.width, self.bar_wrap.opacity = dp(42), dp(42), 1
+        self.picon_wrap.width, self.picon_wrap.opacity = dp(48), 1
         self.num_lbl.text = str(item.get("num", 0))
         self.num_lbl.color = C_CYAN if selected else C_WHITE
+        self._set_encrypted_icon(is_enc)
 
         epg_title = ""
         if epg_event and epg_event.get("title"):
@@ -1076,7 +1384,7 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
             self.progress.set_progress(0.0, visible=False)
 
         ch_hex, epg_hex = ("#5CC8FF", "#73B9D9") if selected else ("#F2F5FA", "#A6B0BD")
-        live_dot = "[color=#4CE08A]● [/color]" if is_live else ""
+        live_dot = "[color=#4CE08A]● [/color]" if (is_live and not is_enc) else ""
         sn, se = escape_markup(name), escape_markup(epg_title)
         self.text_lbl.text = f"{live_dot}[color={ch_hex}]{sn}[/color]" + (f"  [color={epg_hex}]{se}[/color]" if se else "")
         self._set_selected(selected)
@@ -1165,6 +1473,11 @@ class BouquetModal(ModalView):
                 "▸  Ustawienia IP, logowania, pikon i PIP", on_settings,
                 (0.19, 0.11, 0.05, 0.94), (0.72, 0.44, 0.18, 0.70),
                 (0.96, 0.60, 0.24, 1), (1.00, 0.82, 0.60, 1), (0.38, 0.21, 0.08, 0.98),
+            ),
+            (
+                "⬆  Aktualizacja aplikacji z GitHub", lambda: App.get_running_app().check_for_updates(),
+                (0.05, 0.10, 0.18, 0.94), (0.20, 0.48, 0.72, 0.70),
+                (0.30, 0.65, 0.95, 1), (0.65, 0.85, 1.00, 1), (0.08, 0.28, 0.48, 0.98),
             ),
             (
                 "✕  Zamknij aplikację", on_exit,
@@ -2874,7 +3187,13 @@ class EnigmaChannelSelectionScreen(Screen):
             if sref.startswith("1:64:"):
                 built.append({"type": "marker", "name": sname})
             else:
-                built.append({"type": "channel", "num": ch_num, "name": sname, "sref": sref})
+                built.append({
+                    "type": "channel",
+                    "num": ch_num,
+                    "name": sname,
+                    "sref": sref,
+                    "encrypted": is_e2iplayer_sref(sref),
+                })
                 ch_num += 1
 
         self.items, self.epg_now, self.epg_next, self.top_idx = built, {}, {}, 0
@@ -3006,14 +3325,32 @@ class EnigmaChannelSelectionScreen(Screen):
         if not it:
             return
         sref, name = it["sref"], it["name"]
+        is_enc = bool(it.get("encrypted", False))
         self.sel_ch_lbl.text = name
         self.header_picon.opacity = 0
         self.picon_manager.get_picon(sref, name, self._on_header_picon)
-        self._render_left_epg(self.epg_now.get(sref), self.epg_service_cache.get(sref, []))
+
+        if is_enc:
+            self.epg_title_lbl.text = "Streaming szyfrowany (E2iPlayer)"
+            self.epg_title_lbl.color = C_KEY_RED
+            self.epg_desc_lbl.text = "Naciśnij OK, aby zobaczyć szczegóły."
+            self.epg_start_lbl.text = self.epg_end_lbl.text = ""
+            self.main_progress.set_progress(0.0, visible=False)
+            for lbl in self.upcoming_lbls:
+                lbl.text = ""
+        else:
+            self.epg_title_lbl.color = C_CYAN
+            self._render_left_epg(self.epg_now.get(sref), self.epg_service_cache.get(sref, []))
 
         if self._detail_ev:
             self._detail_ev.cancel()
-        self._detail_ev = Clock.schedule_once(lambda dt: self._fetch_epg_service(sref), 0.22)
+        if not is_enc:
+            self._detail_ev = Clock.schedule_once(lambda dt: self._fetch_epg_service(sref), 0.22)
+
+        if is_enc:
+            if self._pig_auto_ev:
+                self._pig_auto_ev.cancel()
+            return
 
         if platform == "android":
             if self._pig_auto_ev:
@@ -3095,6 +3432,9 @@ class EnigmaChannelSelectionScreen(Screen):
     def _start_pig_for_item(self, item, save_last=True):
         if not item:
             return
+        if item.get("encrypted"):
+            self._show_encrypted_modal(item)
+            return
         self.playing_item = item
         if save_last:
             App.get_running_app().update_config_fields(last_sref=item["sref"], last_bouquet_idx=self.bouquet_idx)
@@ -3108,6 +3448,22 @@ class EnigmaChannelSelectionScreen(Screen):
         it = self.get_selected_channel()
         if it:
             self._start_pig_for_item(it, save_last=True)
+
+    def _show_encrypted_modal(self, item):
+        if self.active_modal:
+            try:
+                self.active_modal.dismiss()
+            except Exception:
+                pass
+            self.active_modal = None
+        self.video_backend.hide()
+        self.playing_item = None
+        self._render_viewport()
+        ch_name = item.get("name", "") if item else ""
+        modal = EncryptedStreamModal(channel_name=ch_name)
+        modal.bind(on_dismiss=lambda *a: setattr(self, "active_modal", None))
+        self.active_modal = modal
+        modal.open()
 
     def _build_infobar_data(self, item):
         sref = item["sref"]
@@ -3179,14 +3535,22 @@ class EnigmaChannelSelectionScreen(Screen):
 
     def play_channel_fullscreen(self, item):
         sref, name = item["sref"], item["name"]
-        self.playing_item = item
-        App.get_running_app().update_config_fields(last_sref=sref, last_bouquet_idx=self.bouquet_idx)
 
         for i, x in enumerate(self.items):
             if x.get("sref") == sref:
                 self.selected_idx = i
                 self._ensure_visible()
                 break
+
+        if item.get("encrypted"):
+            app = App.get_running_app()
+            if app and app.root and app.root.current != "main":
+                app.root.current = "main"
+            self._show_encrypted_modal(item)
+            return
+
+        self.playing_item = item
+        App.get_running_app().update_config_fields(last_sref=sref, last_bouquet_idx=self.bouquet_idx)
 
         ib_data = self._build_infobar_data(item)
         embedded_fs, msg = self.video_backend.play_fullscreen(
@@ -3312,14 +3676,17 @@ class EnigmaChannelSelectionScreen(Screen):
 
     def handle_dpad(self, key):
         if self.active_modal:
-            if key == 276 and (time.monotonic() - getattr(self.active_modal, "opened_at", 0.0)) <= 0.35:
-                self.active_modal.dismiss()
-                self._enter_lbtn_focus(0)
-                return True
-            if key == ord("r"):
-                self.active_modal.dismiss()
-                return True
-            return self.active_modal.handle_key(key)
+            if isinstance(self.active_modal, BouquetModal):
+                if key == 276 and (time.monotonic() - getattr(self.active_modal, "opened_at", 0.0)) <= 0.35:
+                    self.active_modal.dismiss()
+                    self._enter_lbtn_focus(0)
+                    return True
+                if key == ord("r"):
+                    self.active_modal.dismiss()
+                    return True
+            if hasattr(self.active_modal, "handle_key"):
+                return self.active_modal.handle_key(key)
+            return True
 
         if self._lbtn_focus:
             if key == 276:
@@ -3430,6 +3797,12 @@ class EnigmaTVApp(App):
                 Clock.schedule_interval(self._poll_tv_keys, 1.0 / 30.0)
             except Exception:
                 pass
+        old_apk = self._get_update_apk_path()
+        if os.path.exists(old_apk):
+            try:
+                os.remove(old_apk)
+            except Exception:
+                pass        
         return sm
 
     def open_epg_from(self, source_screen):
@@ -3449,6 +3822,183 @@ class EnigmaTVApp(App):
             initial_now_ev=initial_now,
         )
         self.root.current = "epg"
+
+    def check_for_updates(self):
+        """Uruchamia sprawdzanie aktualizacji z GitHuba w tle."""
+        if getattr(self, "_updating", False):
+            self._show_update_info("Aktualizacja już w toku...")
+            return
+        self._updating = True
+        self._show_update_info("Sprawdzanie aktualizacji na GitHub...")
+        threading.Thread(target=self._check_updates_worker, daemon=True).start()
+
+    def _check_updates_worker(self):
+        url = "https://api.github.com/repos/Payti/EnigmaTVApp/releases/latest"
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+            with _urlopen_https(req, timeout=12) as r:
+                data = json.loads(r.read().decode("utf-8"))
+        except Exception as e:
+            err_msg = f"Błąd sieci: {e}"
+            Clock.schedule_once(lambda dt, m=err_msg: self._finish_update_error(m))
+            return
+
+        tag = (data.get("tag_name") or "").lstrip("vV").strip()
+        if not tag:
+            Clock.schedule_once(lambda dt: self._finish_update_error("Brak tagu wersji w odpowiedzi GitHuba."))
+            return
+
+        def _ver_tuple(v):
+            return tuple(int(x) for x in re.findall(r"\d+", v))
+
+        if _ver_tuple(tag) <= _ver_tuple(APP_VERSION):
+            info_msg = f"Masz już najnowszą wersję (v{APP_VERSION})."
+            Clock.schedule_once(lambda dt, m=info_msg: self._finish_update_info(m))
+            return
+
+        apk_url = None
+        for asset in data.get("assets", []):
+            if (asset.get("name") or "").endswith(".apk"):
+                apk_url = asset.get("browser_download_url")
+                break
+
+        if not apk_url:
+            Clock.schedule_once(lambda dt: self._finish_update_error("Wydanie nie zawiera pliku APK."))
+            return
+
+        Clock.schedule_once(lambda dt, t=tag, u=apk_url: self._show_update_confirm(t, u))
+
+    def _finish_update_error(self, msg):
+        self._updating = False
+        self._show_update_error(msg)
+
+    def _finish_update_info(self, msg):
+        self._updating = False
+        self._show_update_info(msg)
+
+    def _show_update_error(self, msg):
+        print(f"[UPDATE][ERR] {msg}", flush=True)
+        self.main_screen._toast_until = time.monotonic() + 8.0
+        self.main_screen.subinfo_lbl.color = C_ERROR
+        self.main_screen.subinfo_lbl.text = msg
+        Clock.schedule_once(self.main_screen._restore_subinfo_color, 8.05)
+
+    def _show_update_info(self, msg, duration=4.0):
+        print(f"[UPDATE][INFO] {msg}", flush=True)
+        self.main_screen._toast_until = time.monotonic() + duration
+        self.main_screen.subinfo_lbl.color = C_CYAN
+        self.main_screen.subinfo_lbl.text = msg
+        Clock.schedule_once(self.main_screen._restore_subinfo_color, duration + 0.05)
+
+    def _show_update_confirm(self, new_version, apk_url):
+        self._updating = False
+        if self.main_screen.active_modal:
+            try:
+                self.main_screen.active_modal.dismiss()
+            except Exception:
+                pass
+        modal = UpdateConfirmModal(new_version, lambda: self._download_and_install_apk(apk_url))
+        modal.bind(on_dismiss=lambda *a: setattr(self.main_screen, "active_modal", None))
+        self.main_screen.active_modal = modal
+        modal.open()
+
+    def _get_update_apk_path(self):
+        if platform == "android":
+            try:
+                from jnius import autoclass
+                activity = autoclass("org.kivy.android.PythonActivity").mActivity
+                files_dir = activity.getFilesDir().getAbsolutePath()
+                return os.path.join(files_dir, "update.apk")
+            except Exception:
+                pass
+        return os.path.join(self.user_data_dir, "update.apk")
+
+    def _download_and_install_apk(self, url):
+        if getattr(self, "_updating", False):
+            return
+        self._updating = True
+        dest = self._get_update_apk_path()
+        self._show_update_info("Pobieranie aktualizacji APK...", duration=120.0)
+        threading.Thread(target=self._download_apk_worker, args=(url, dest), daemon=True).start()
+
+    def _download_apk_worker(self, url, dest):
+        try:
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+            with _urlopen_https(req, timeout=90) as r, open(dest, "wb") as f:
+                total = int(r.headers.get("Content-Length") or 0)
+                downloaded = 0
+                last_pct = -1
+                while True:
+                    chunk = r.read(65536)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total > 0:
+                        pct = int(downloaded * 100 / total)
+                        if pct >= last_pct + 5 or pct == 100:
+                            last_pct = pct
+                            Clock.schedule_once(
+                                lambda dt, p=pct: self._show_update_info(f"Pobieranie aktualizacji: {p}%", duration=30.0)
+                            )
+            size_mb = os.path.getsize(dest) / (1024.0 * 1024.0)
+            with open(dest, "rb") as f_chk:
+                magic = f_chk.read(4)
+            print(f"[UPDATE] Pobrano {dest} ({size_mb:.2f} MB), magic={magic!r}", flush=True)
+            if magic != b"PK\x03\x04":
+                raise ValueError("Pobrany plik nie jest poprawnym archiwum APK")
+        except Exception as e:
+            err_msg = f"Błąd pobierania: {e}"
+            Clock.schedule_once(lambda dt, m=err_msg: self._finish_update_error(m))
+            return
+        Clock.schedule_once(lambda dt, p=dest: self._install_apk(p))
+
+    def _install_apk(self, path):
+        self._updating = False
+        if platform != "android":
+            self._show_update_info(f"Pobrano APK: {path}", duration=6.0)
+            return
+        try:
+            from jnius import autoclass, cast
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Intent = autoclass("android.content.Intent")
+            Uri = autoclass("android.net.Uri")
+            File = autoclass("java.io.File")
+            BuildVersion = autoclass("android.os.Build$VERSION")
+            FileProvider = autoclass("androidx.core.content.FileProvider")
+
+            activity = PythonActivity.mActivity
+            context = cast("android.content.Context", activity)
+            pkg = activity.getPackageName()
+
+            print(f"[UPDATE] Start instalacji: {path}, SDK={BuildVersion.SDK_INT}", flush=True)
+            if BuildVersion.SDK_INT >= 26:
+                pm = activity.getPackageManager()
+                can_inst = pm.canRequestPackageInstalls()
+                print(f"[UPDATE] canRequestPackageInstalls={can_inst}", flush=True)
+                if not can_inst:
+                    self.video_backend.hide()
+                    Settings = autoclass("android.provider.Settings")
+                    perm_intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                    perm_intent.setData(Uri.parse(f"package:{pkg}"))
+                    perm_intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    activity.startActivity(perm_intent)
+                    self._show_update_info("Zezwól na instalację z tego źródła i uruchom aktualizację ponownie.", duration=8.0)
+                    return
+
+            self.video_backend.hide()
+            apk_file = File(path)
+            apk_uri = FileProvider.getUriForFile(context, f"{pkg}.fileprovider", apk_file)
+            print(f"[UPDATE] apk_uri={apk_uri.toString()}", flush=True)
+            intent = Intent(Intent.ACTION_VIEW)
+            intent.setDataAndType(apk_uri, "application/vnd.android.package-archive")
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+            print("[UPDATE] startActivity(ACTION_VIEW) wywołane", flush=True)
+        except Exception as e:
+            self._show_update_error(f"Błąd instalacji: {e}")
 
     def on_stop(self):
         self.video_backend.stop()
