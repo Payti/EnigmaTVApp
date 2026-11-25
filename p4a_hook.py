@@ -1765,6 +1765,27 @@ def _patch_manifest(manifest_file):
     if 'android:hardwareAccelerated="false"' in text:
         text = text.replace('android:hardwareAccelerated="false"', 'android:hardwareAccelerated="true"')
 
+    # Usuń przestarzały atrybut extractNativeLibs (kompresję .so kontroluje useLegacyPackaging w build.gradle)
+    text = re.sub(r'\s*android:extractNativeLibs="(?:true|false)"', "", text)
+
+    # Usuń zduplikowane REQUEST_INSTALL_PACKAGES (szablon używa pętli z buildozer.spec, wynikowy manifest zostawia 1 wpis)
+    req_install_re = re.compile(
+        r'[ \t]*<uses-permission\s+android:name="android\.permission\.REQUEST_INSTALL_PACKAGES"\s*/>\r?\n?'
+    )
+    if "{% for perm in args.permissions %}" in text:
+        text = req_install_re.sub("", text)
+    else:
+        seen_req_install = False
+
+        def _dedup_req_install(match):
+            nonlocal seen_req_install
+            if not seen_req_install:
+                seen_req_install = True
+                return match.group(0)
+            return ""
+
+        text = req_install_re.sub(_dedup_req_install, text)
+
     extras = []
     if "usesCleartextTraffic" not in text:
         extras.append('android:usesCleartextTraffic="true"')
@@ -1809,7 +1830,6 @@ def _patch_manifest(manifest_file):
 
     manifest_file.write_text(text, encoding="utf-8")
     print(f"[HOOK] Zaktualizowano manifest dla Android TV + APK Update: {manifest_file}")
-
 
 def _create_file_paths(dist_dir):
     xml_dir = dist_dir / "src" / "main" / "res" / "xml"
