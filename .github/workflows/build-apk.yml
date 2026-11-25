@@ -70,7 +70,7 @@ jobs:
 
       - name: Restore persistent Android debug keystore
         env:
-          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64 }}
+          ANDROID_DEBUG_KEYSTORE_B64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_B64_ZALMAN_VM }}
         run: |
           if [ -n "$ANDROID_DEBUG_KEYSTORE_B64" ]; then
             mkdir -p "$HOME/.android"
