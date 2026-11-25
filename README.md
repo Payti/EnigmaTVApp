@@ -46,7 +46,7 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 * **Poprawki pikon i stabilności:** usprawnione wyszukiwanie i wyświetlanie pikon oraz zwiększona stabilność odtwarzania i automatycznego budowania paczek.
 
 <details>
-<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.2)</strong></summary>
+<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.3)</strong></summary>
 
 ## Co nowego w v1.3
 
