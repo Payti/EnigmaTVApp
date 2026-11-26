@@ -27,7 +27,7 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 | :---: | :---: |
 | ![Wybór ścieżki Audio i Napisów](screenshots/05_audio_sub.png) | ![Przewodnik EPG](screenshots/06_epg.png) |
 
-| Wskaźnik E2iPlayer | Obsługa kanału zakodowanego |
+| Wskaźnik E2iPlayer | Obsługa zaszyfrowane stream'a |
 | :---: | :---: |
 | ![Wskaźnik E2iPlayer](screenshots/08_e2iplayer.png) | ![Kanał zakodowany](screenshots/09_encrypted.png) |
 
