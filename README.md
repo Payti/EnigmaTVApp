@@ -180,7 +180,7 @@ Po zainstalowaniu wersji **v1.4 lub nowszej** nie trzeba już używać komputera
 4. W systemowym oknie instalatora Android TV zatwierdź **Zainstaluj** (lub **Aktualizuj**).
 5. Po zakończeniu uruchom aplikację ponownie — cała konfiguracja (`enigma_config.json`) i pamięć podręczna pikon (`picons_cache`) zostaną zachowane, a tymczasowy plik `update.apk` usunie się automatycznie przy starcie nowej wersji.
 
-> ****Uwaga:** Aplikację do wersji v1.4 należy zaktualizować z linku poniżej przez ADB (jak dotychczas). Od tego momentu wszystkie kolejne wydania będą już instalować się automatycznie przez OTA bez odinstalowywania.
+> ****Uwaga:** Aplikację do wersji v1.4 należy zaktualizować przez ADB (jak dotychczas). Od tego momentu wszystkie kolejne wydania będą już instalować się automatycznie przez OTA bez odinstalowywania.
 
 ---
 
