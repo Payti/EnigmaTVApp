@@ -172,7 +172,7 @@ adb disconnect <IP_TELEWIZORA>:5555
 
 ### Aktualizacja aplikacji z poziomu pilota (OTA)
 
-Po zainstalowaniu wersji **v1.3 lub nowszej** nie trzeba już używać komputera ani `adb` — kolejne wydania można instalować bezpośrednio z ekranu telewizora:
+Po zainstalowaniu wersji **v1.4 lub nowszej** nie trzeba już używać komputera ani `adb` — kolejne wydania można instalować bezpośrednio z ekranu telewizora:
 
 1. Otwórz menu w aplikacji **Enigma2 TV** i wybierz **Aktualizacja aplikacji z GitHub**.
 2. Jeśli na GitHubie jest nowsze wydanie, potwierdź pobranie i poczekaj, aż pasek postępu dojdzie do `100%`.
