@@ -27,29 +27,44 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 | :---: | :---: |
 | ![Wybór ścieżki Audio i Napisów](screenshots/05_audio_sub.png) | ![Przewodnik EPG](screenshots/06_epg.png) |
 
-| Wskaźnik E2iPlayer | Obsługa kanału zakodowanego |
+| Odtwarzanie kanału 4K UHD (H.265/HEVC) | Wskaźnik E2iPlayer |
 | :---: | :---: |
-| ![Wskaźnik E2iPlayer](screenshots/08_e2iplayer.png) | ![Kanał zakodowany](screenshots/09_encrypted.png) |
+| ![Odtwarzanie kanału 4K UHD](screenshots/07_4k.png) | ![Wskaźnik E2iPlayer](screenshots/08_e2iplayer.png) |
 
-| Odtwarzanie kanału 4K UHD (H.265/HEVC) |
-| :---: |
-| ![Odtwarzanie kanału 4K UHD](screenshots/07_4k.png) |
+| Obsługa zaszyfrowanego stream'a | Dekoder podstawowy i zapasowy (Failover) |
+| :---: | :---: |
+| ![Kanał zakodowany](screenshots/09_encrypted.png) | ![Dekoder zapasowy i automatyczny failover](screenshots/10_decoder_failover.png) |
+
+| Sterowanie pilotem: tryb Enigma2 | Konfiguracja własnych klawiszy pilota |
+| :---: | :---: |
+| ![Sterowanie pilotem Enigma2](screenshots/11_sterowanie_pilot_e2.png) | ![Własne przypisywanie klawiszy pilota](screenshots/12_sterowanie_pilot_user.png) |
 
 ---
 
-## Co nowego w v1.4
+## Co nowego w v1.71
 
-* **Aktualizacja aplikacji (OTA) z GitHuba:** sprawdzanie nowych wydań, pobieranie pliku `.apk` z paskiem postępu i uruchamianie systemowego instalatora Android TV (`FileProvider` / `PackageInstaller`) bezpośrednio z menu aplikacji przy użyciu pilota. Po restarcie nowej wersji pobrany plik `update.apk` jest automatycznie usuwany z pamięci telewizora.
-* **Stały podpis APK (aktualizacja bez utraty danych):** wszystkie wydania budowane przez GitHub Actions korzystają z tego samego certyfikatu podpisywania, weryfikowanego automatycznie przez `apksigner` przed publikacją. Aktualizacja nadpisuje aplikację w miejscu z pełnym zachowaniem konfiguracji (`enigma_config.json`) i pamięci podręcznej pikon (`picons_cache`), bez odinstalowywania i bez użycia `adb`.
-* **Wskaźnik aktywnego E2iPlayer:** wyraźna sygnalizacja na ekranie, gdy dekoder Enigma2 odtwarza materiał w E2iPlayer, ułatwiająca szybką orientację w stanie odbiornika.
-* **Obsługa kanałów zakodowanych:** czytelna informacja na ekranie przy próbie uruchomienia zakodowanego strumienia zamiast pustego, czarnego obrazu.
-* **Poprawki pikon i stabilności:** usprawnione wyszukiwanie i wyświetlanie pikon oraz zwiększona stabilność odtwarzania i automatycznego budowania paczek.
+* **Trzy tryby sterowania pilotem (`Tryb sterowania pilotem` w Ustawieniach):**
+  * **Android (domyślny):** klasyczne sterowanie znane z wcześniejszych wersji aplikacji.
+  * **Enigma2 (jak w dekoderze):** układ klawiszy wzorowany na tunerach Enigma2 — na pełnym ekranie `▲`/`▼` otwiera listę kanałów, `◄`/`►` oraz `CH±` przełącza kanały, a na liście kanałów kolorowe przyciski działają jako: **Czerwony** (`Lista kanałów`), **Zielony** (`Bukiety/Ustawienia`), **Żółty** (`Menu` — Konfiguracja dekodera Enigma2) oraz **Niebieski** (`Odśwież listę` — odświeżanie listy kanałów i EPG).
+  * **Własne (konfiguracja klawiszy):** interaktywne okno pozwalające przypisać niemal dowolny przycisk pilota Android TV do wybranej funkcji aplikacji (osobno dla pełnego ekranu i listy kanałów), z automatycznym rozwiązywaniem konfliktów oraz trwałym zapisem konfiguracji pomiędzy uruchomieniami.
+* **Obsługa dekodera zapasowego (automatyczny Failover):** w ustawieniach przemianowano główne pole na **Adres IP dekodera podstawowego** i dodano opcjonalne pole **Adres IP dekodera zapasowego (opcjonalnie)**. Gdy pole zapasowe jest puste, aplikacja działa jak dotychczas. Po wpisaniu IP drugiego dekodera, w przypadku błędu odtwarzania lub braku odpowiedzi na dekoderze podstawowym (np. zajęte głowice), aplikacja automatycznie przełącza strumień na dekoder zapasowy i wyświetla o tym czytelny komunikat (oraz oznaczenie `(ZAPAS)` na Infobarze / `[ZAPAS]` na liście).
+  > [!IMPORTANT]
+  > **Warunek działania dekodera zapasowego:** listy kanałów i bukiety na obu dekoderach (podstawowym i zapasowym) muszą być identyczne.
+* **Przewijany ekran konfiguracji:** lewa lista pól w *Konfiguracja dekodera Enigma2* została umieszczona w przewijanym kontenerze — schodzenie kursorem w dół płynnie odsłania kolejne nastawy bez ściskania interfejsu.
+* **Dynamiczny pasek podpowiedzi klawiszy (zapisywany po restarcie):** dolny pasek Infobaru oraz etykiety na liście kanałów automatycznie dostosowują się do wybranego trybu pilota (`Android`, `Enigma2`, `Własne`) i są trwale zapamiętywane po ponownym uruchomieniu aplikacji.
 
 <details>
-<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.3)</strong></summary>
+<summary><strong>Historia wcześniejszych zmian (v1.0 – v1.4)</strong></summary>
 
-## Co nowego w v1.3
+## Co nowego w v1.4
 
+- **Aktualizacja aplikacji (OTA) z GitHuba:** sprawdzanie nowych wydań, pobieranie pliku `.apk` z paskiem postępu i uruchamianie systemowego instalatora Android TV (`FileProvider` / `PackageInstaller`) bezpośrednio z menu aplikacji przy użyciu pilota. Po restarcie nowej wersji pobrany plik `update.apk` jest automatycznie usuwany z pamięci telewizora.
+- **Stały podpis APK (aktualizacja bez utraty danych):** wszystkie wydania budowane przez GitHub Actions korzystają z tego samego certyfikatu podpisywania, weryfikowanego automatycznie przez `apksigner` przed publikacją. Aktualizacja nadpisuje aplikację w miejscu z pełnym zachowaniem konfiguracji (`enigma_config.json`) i pamięci podręcznej pikon (`picons_cache`), bez odinstalowywania i bez użycia `adb`.
+- **Wskaźnik aktywnego E2iPlayer:** wyraźna sygnalizacja na ekranie, gdy dekoder Enigma2 odtwarza materiał w E2iPlayer, ułatwiająca szybką orientację w stanie odbiornika.
+- **Obsługa kanałów zakodowanych:** czytelna informacja na ekranie przy próbie uruchomienia zakodowanego strumienia zamiast pustego, czarnego obrazu.
+- **Poprawki pikon i stabilności:** usprawnione wyszukiwanie i wyświetlanie pikon oraz zwiększona stabilność odtwarzania i automatycznego budowania paczek.
+
+### v1.3
 - **Natychmiastowe okno EPG z animacją ładowania** — cały interfejs EPG pojawia się od razu bez czarnego ekranu, wyświetlając obracający się wskaźnik i komunikat `Pobieram EPG z dekodera ...` na czas pobierania danych z dekodera oraz porcjowanego renderowania wierszy.
 - **Logowanie do OpenWebif (HTTP Basic Auth)** — nowe pola `Użytkownik OpenWebif` i `Hasło OpenWebif` (gdy puste, aplikacja łączy się bez uwierzytelniania) oraz opcjonalny checkbox **Autoryzacja strumienia (port 8001)** dopisujący dane logowania do adresu wideo dopiero po jego włączeniu.
 - **Przełączana klawiatura ekranowa TV** — tryby **`123`**, **`abc`**, **`ABC`** oraz **`#@!`** (ze znakami `/`, `_`, `-`, `.` i spacją) obsługiwane pilotem dla pól IP, użytkownika, hasła i własnej ścieżki pikon.
@@ -79,17 +94,22 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 
 ## Najważniejsze funkcje
 
+- **Trzy tryby sterowania pilotem** — *Android (domyślny)*, *Enigma2 (jak w dekoderze)* oraz *Własne (konfiguracja klawiszy)* z uczeniem przycisków pilota i zapisem ustawień.
+- **Dekoder zapasowy (Failover)** — opcjonalny adres IP drugiego tunera Enigma2; przy błędzie odtwarzania lub braku odpowiedzi z dekodera podstawowego aplikacja automatycznie przełącza się na zapasowy (wymagane identyczne listy kanałów i bukiety).
 - **Dwa tryby podglądu PIP (PIG) na liście kanałów:**
   - *Enigma2 (ostatni oglądany)* — po uruchomieniu odtwarza ostatni oglądany kanał, a przeglądanie listy i bukietów nie przerywa podglądu.
   - *Auto (podąża za kursorem)* — automatycznie uruchamia podgląd po ok. 1 s postoju na wybranym kanale.
 - **Infobar w stylu Enigma2 (pod `OK` na pełnym ekranie)** — pikona kanału, aktualna i następna audycja EPG z paskiem postępu i czasem do końca, zegar z datą oraz diagnostyka strumienia na żywo: rozdzielczość (`4K UHD` / `FHD` / `HD` / `SD`), proporcje, FPS, kodek wideo, aktywna ścieżka audio, liczba ścieżek napisów, bitrate (Mbps) oraz zgubione klatki.
 - **Wybór ścieżki Audio i Napisów z pilota** — natywna nakładka na pełnym ekranie z obsługą napisów DVB Sub i Teletext oraz możliwością ich wyłączenia.
 - **Pełny przewodnik EPG** — Pojedynczy EPG, Multi EPG dla całego bukietu, szczegółowy opis z wyszukiwaniem podobnych audycji oraz zdalne dodawanie timerów nagrywania na dekoderze.
+- **Aktualizacje OTA z GitHuba** — sprawdzanie, pobieranie i instalowanie nowych wersji bezpośrednio pilotem bez utraty ustawień.
 - **Dopasowanie do Android TV** — baner Leanback, automatyczne pobieranie i cache pikon z dekodera (domyślnie `/usr/share/enigma2/picon`), obsługa HTTP Basic Auth, kolorowe menu bukietów i zamykanie przez `2× Wstecz`.
 
 ---
 
 ## Sterowanie pilotem
+
+### Tryb `Android` (domyślny)
 
 | Ekran | Klawisze pilota | Akcja |
 |---|---|---|
@@ -107,12 +127,54 @@ Przetestowano na: **Xiaomi Mi Box 4K**, **Philips 65PUS8536 (Android TV 11)**.
 | | `◄` / `MENU` / `AUDIO` / `SUB` | Wybór ścieżki Audio i Napisów |
 | | `►` / `EPG` | Otwórz przewodnik EPG |
 | | `Wstecz` | Powrót do listy kanałów |
-| **Przewodnik EPG** | `▲` / `▼` | Nawigacja po audycjach / kanałach |
-| | `◄` / `►` | Przełączanie trybu (Pojedynczy / Multi / Info) |
-| | **`2× ◄` (szybko)** | Fokus na przyciski **`EPG` / `MENU` / `EXIT`** |
-| | `OK` | Opis audycji lub przełączenie kanału (w Multi EPG) |
-| | **Czerwony / Zielony / Żółty / Niebieski** | Info / Dodaj timer / Pojedynczy EPG / Multi EPG |
-| | `Wstecz` | Powrót |
+
+### Tryb `Enigma2` (jak w dekoderze)
+
+| Ekran | Klawisze pilota | Akcja |
+|---|---|---|
+| **Lista kanałów** | `▲` / `▼` | Zmiana kanału |
+| | `◄` / `►` | Przewijanie stroną |
+| | `CH+` / `CH-` | Przełączanie bukietu |
+| | `OK` | Odtwarzanie na pełnym ekranie |
+| | **Czerwony** (`Lista kanałów`) | Powrót do listy kanałów (bieżący kanał) |
+| | **Zielony** (`Bukiety/Ustawienia`) | Menu bukietów i opcji |
+| | **Żółty** (`Menu`) / `MENU` | Konfiguracja dekodera Enigma2 |
+| | **Niebieski** (`Odśwież listę`) | Odświeżanie listy kanałów i EPG |
+| | `EPG` / `INFO` | Pełny przewodnik EPG |
+| | `2× Wstecz` | Zamknięcie aplikacji |
+| **Pełny ekran** | `OK` | Pokaż / ukryj Infobar |
+| | `▲` / `▼` / **Czerwony** / `Wstecz` | Powrót do listy kanałów |
+| | `◄` / `►` / `CH-` / `CH+` | Przełączanie kanałów |
+| | `AUDIO` / **Żółty** | Wybór ścieżki Audio i Napisów |
+| | `SUB` | Wybór Napisów |
+| | `EPG` / `INFO` | Otwórz przewodnik EPG |
+| | `MENU` | Konfiguracja dekodera Enigma2 |
+| | **Zielony** | Menu bukietów i ustawień |
+| | **Niebieski** | Odświeżenie listy kanałów |
+
+### Przewodnik EPG (wspólny dla wszystkich trybów)
+
+| Klawisze pilota | Akcja |
+|---|---|
+| `▲` / `▼` | Nawigacja po audycjach / kanałach |
+| `◄` / `►` | Przełączanie trybu (Pojedynczy / Multi / Info) |
+| **`2× ◄` (szybko)** | Fokus na przyciski **`EPG` / `MENU` / `EXIT`** |
+| `OK` | Opis audycji lub przełączenie kanału (w Multi EPG) |
+| **Czerwony / Zielony / Żółty / Niebieski** | Info / Dodaj timer / Pojedynczy EPG / Multi EPG |
+| `Wstecz` | Powrót |
+
+---
+
+### Jak przypisać własne klawisze pilota (Tryb `Własne`)
+
+1. Wejdź w **Konfiguracja dekodera Enigma2** (Menu / Ustawienia), zjedź kursorem na sam dół listy pól do opcji **Tryb sterowania pilotem**.
+2. Przełącz wartość na **Własne (konfiguracja klawiszy)** i naciśnij **OK** — otworzy się okno **WŁASNE STEROWANIE PILOTEM** podzielone na sekcje *Pełny ekran (oglądanie TV)* oraz *Lista kanałów*.
+3. *(Opcjonalnie)* Na dole okna możesz wczytać gotowy szablon startowy przyciskiem **Baza: Android** lub **Baza: Enigma2**, a następnie zmienić tylko wybrane skróty.
+4. Najedź na wybraną funkcję i naciśnij **OK** — wiersz podświetli się na żółto z komunikatem `[NACIŚNIJ KLAWISZ...]`.
+5. Naciśnij docelowy przycisk na pilocie Android TV (z wyłączeniem klawiszy systemowych takich jak Power, Home, Głośność czy Asystent).
+   * Jeśli dany klawisz był już użyty przez inną funkcję w tej samej sekcji, aplikacja automatycznie go przeniesie i poinformuje o tym na górnym pasku.
+   * Klawisz **Wstecz** podczas nasłuchiwania anuluje przypisywanie; klawisz **DEL / Backspace** na zaznaczonej funkcji czyści jej przypisanie.
+6. Po zakończeniu zjedź na dolny pasek okna, wybierz **ZAPISZ**, a następnie zatwierdź głównym przyciskiem **ZAPISZ** w ustawieniach dekodera. Wszystkie przypisane klawisze oraz odpowiadające im podpowiedzi na Infobarze i liście zostaną zapisane na stałe.
 
 ---
 
@@ -142,14 +204,14 @@ Zaakceptuj na ekranie telewizora komunikat **Zezwolić na debugowanie USB?** (*Z
 
 ```bash
 adb devices
-adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.71-armeabi-v7a_arm64-v8a-debug.apk
 adb disconnect <IP_TELEWIZORA>:5555
 ```
 
 #### Krok 2b: Instalacja z komputera Windows (ADB / Platform-Tools)
 
 1. Pobierz oficjalną paczkę **SDK Platform-Tools for Windows** ze strony Google: [platform-tools-latest-windows.zip](https://dl.google.com/android/repository/platform-tools-latest-windows.zip).
-2. Rozpakuj archiwum do prostego katalogu, np. `C:\adb` (lub `C:\platform-tools`), i skopiuj do tego samego folderu pobrany plik `enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk`.
+2. Rozpakuj archiwum do prostego katalogu, np. `C:\adb` (lub `C:\platform-tools`), i skopiuj do tego samego folderu pobrany plik `enigma2tv-1.71-armeabi-v7a_arm64-v8a-debug.apk`.
 3. Otwórz **Wiersz poleceń (`cmd`)** w tym folderze (w pasku adresu Eksploratora Windows wpisz `cmd` i naciśnij `Enter`).
 4. Połącz się z telewizorem:
 
@@ -162,7 +224,7 @@ adb connect <IP_TELEWIZORA>:5555
 
 ```cmd
 adb devices
-adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.4-armeabi-v7a_arm64-v8a-debug.apk
+adb -s <IP_TELEWIZORA>:5555 install -r enigma2tv-1.71-armeabi-v7a_arm64-v8a-debug.apk
 adb disconnect <IP_TELEWIZORA>:5555
 ```
 
@@ -180,7 +242,8 @@ Po zainstalowaniu wersji **v1.4 lub nowszej** nie trzeba już używać komputera
 4. W systemowym oknie instalatora Android TV zatwierdź **Zainstaluj** (lub **Aktualizuj**).
 5. Po zakończeniu uruchom aplikację ponownie — cała konfiguracja (`enigma_config.json`) i pamięć podręczna pikon (`picons_cache`) zostaną zachowane, a tymczasowy plik `update.apk` usunie się automatycznie przy starcie nowej wersji.
 
-> ****Uwaga:** Aplikację do wersji v1.4 należy zaktualizować przez ADB (jak dotychczas). Od tego momentu wszystkie kolejne wydania będą już instalować się automatycznie przez OTA bez odinstalowywania.
+> [!NOTE]
+> Aplikację ze starszej wersji (poniżej v1.4) należy zaktualizować przez ADB. Od wersji v1.4 wszystkie kolejne wydania instalują się już automatycznie przez OTA bez odinstalowywania.
 
 ---
 

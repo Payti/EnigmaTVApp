@@ -38,7 +38,19 @@ if platform not in ("android", "ios"):
     Window.minimum_width = 960
     Window.minimum_height = 540
 
-APP_VERSION = "1.4"
+APP_VERSION = "1.71"
+
+DEFAULT_E2I_PROXY_PORT = "8099"
+E2I_HOST_LABELS = {
+    "canalplus": "CANAL+",
+    "canalplus2": "CANAL+",
+    "tvpvod": "TVP VOD",
+    "playerpl": "PLAYER",
+    "polsatboxgo": "POLSAT BOX",
+    "max": "MAX",
+    "rakutentv": "RAKUTEN",
+    "megogonet": "MEGOGO",
+}
 
 DEFAULT_PICON_DIR = "/usr/share/enigma2/picon"
 PICON_PRESETS = [
@@ -52,6 +64,198 @@ PIG_MODES = [
     ("follow", "Auto (podąża za kursorem)"),
     ("enigma2", "Enigma2 (ostatni oglądany)"),
 ]
+
+REMOTE_MODES = [
+    ("android", "Android (domyślny)"),
+    ("enigma2", "Enigma2 (jak w dekoderze)"),
+    ("custom", "Własne (konfiguracja klawiszy)"),
+]
+
+# (action_id, group, full_label, short_bar_label)
+CUSTOM_REMOTE_ACTIONS = [
+    ("player_infobar", "player", "TV: Pasek info (Infobar)", "Infobar"),
+    ("player_list", "player", "TV: Otwórz listę kanałów", "Lista kanałów"),
+    ("player_zap_prev", "player", "TV: Poprzedni kanał", "Kanał -"),
+    ("player_zap_next", "player", "TV: Następny kanał", "Kanał +"),
+    ("player_audio", "player", "TV: Audio / Napisy", "Audio"),
+    ("player_subs", "player", "TV: Napisy", "Napisy"),
+    ("player_epg", "player", "TV: Przewodnik EPG", "EPG"),
+    ("player_menu", "player", "TV: Konfiguracja dekodera (Menu)", "Menu"),
+    ("player_bouquets", "player", "TV: Bukiety i Ustawienia", "Bukiety"),
+    ("list_channels", "list", "Lista: Lista kanałów (aktywny)", "Lista kanałów"),
+    ("list_bouquets", "list", "Lista: Bukiety i Ustawienia", "Bukiety/Ustawienia"),
+    ("list_settings", "list", "Lista: Konfiguracja dekodera (Menu)", "Menu"),
+    ("list_refresh", "list", "Lista: Odśwież listę kanałów i EPG", "Odśwież listę"),
+    ("list_pip", "list", "Lista: Podgląd PIP", "Podgląd PIP"),
+    ("list_epg", "list", "Lista: Pełny EPG", "EPG"),
+    ("list_audio", "list", "Lista: Wybór audio (E2iPlayer)", "Audio E2i"),
+    ("list_page_up", "list", "Lista: Strona w górę", "Strona -"),
+    ("list_page_down", "list", "Lista: Strona w dół", "Strona +"),
+    ("list_bouquet_next", "list", "Lista: Następny bukiet", "Bukiet +"),
+    ("list_bouquet_prev", "list", "Lista: Poprzedni bukiet", "Bukiet -"),
+]
+
+CUSTOM_ACTION_META = {
+    aid: {"group": grp, "title": title, "short": short}
+    for aid, grp, title, short in CUSTOM_REMOTE_ACTIONS
+}
+
+DEFAULT_CUSTOM_KEYMAP_ANDROID = {
+    "player_infobar": "OK",
+    "player_list": "BACK",
+    "player_zap_prev": "UP",
+    "player_zap_next": "DOWN",
+    "player_audio": "LEFT",
+    "player_subs": "SUBTITLES",
+    "player_epg": "RIGHT",
+    "player_menu": "MENU",
+    "player_bouquets": "",
+    "list_channels": "",
+    "list_bouquets": "RED",
+    "list_settings": "BLUE",
+    "list_refresh": "GREEN",
+    "list_pip": "YELLOW",
+    "list_epg": "GUIDE",
+    "list_audio": "AUDIO",
+    "list_page_up": "CH_UP",
+    "list_page_down": "CH_DOWN",
+    "list_bouquet_next": "",
+    "list_bouquet_prev": "",
+}
+
+DEFAULT_CUSTOM_KEYMAP_ENIGMA2 = {
+    "player_infobar": "OK",
+    "player_list": "UP",
+    "player_zap_prev": "LEFT",
+    "player_zap_next": "RIGHT",
+    "player_audio": "AUDIO",
+    "player_subs": "SUBTITLES",
+    "player_epg": "GUIDE",
+    "player_menu": "MENU",
+    "player_bouquets": "GREEN",
+    "list_channels": "RED",
+    "list_bouquets": "GREEN",
+    "list_settings": "YELLOW",
+    "list_refresh": "BLUE",
+    "list_pip": "",
+    "list_epg": "GUIDE",
+    "list_audio": "AUDIO",
+    "list_page_up": "LEFT",
+    "list_page_down": "RIGHT",
+    "list_bouquet_next": "CH_UP",
+    "list_bouquet_prev": "CH_DOWN",
+}
+
+ANDROID_KC_TO_KEY_ID = {
+    19: "UP",
+    20: "DOWN",
+    21: "LEFT",
+    22: "RIGHT",
+    23: "OK",
+    66: "OK",
+    160: "OK",
+    4: "BACK",
+    82: "MENU",
+    166: "CH_UP",
+    167: "CH_DOWN",
+    172: "GUIDE",
+    165: "INFO",
+    183: "RED",
+    184: "GREEN",
+    185: "YELLOW",
+    186: "BLUE",
+    222: "AUDIO",
+    175: "SUBTITLES",
+    85: "PLAY_PAUSE",
+    126: "PLAY",
+    127: "PAUSE",
+    86: "STOP",
+    89: "REWIND",
+    90: "FAST_FWD",
+    87: "MEDIA_NEXT",
+    88: "MEDIA_PREV",
+    92: "PAGE_UP",
+    93: "PAGE_DOWN",
+    164: "MUTE",
+    170: "TV",
+    229: "LAST_CH",
+    174: "BOOKMARK",
+    17: "STAR",
+    18: "POUND",
+    131: "F1",
+    132: "F2",
+    133: "F3",
+    134: "F4",
+    **{7 + d: f"KEY_{d}" for d in range(10)},
+}
+
+KIVY_KEY_TO_KEY_ID = {
+    273: "UP",
+    274: "DOWN",
+    276: "LEFT",
+    275: "RIGHT",
+    13: "OK",
+    271: "OK",
+    27: "BACK",
+    ord("m"): "MENU",
+    280: "CH_UP",
+    281: "CH_DOWN",
+    ord("e"): "GUIDE",
+    ord("i"): "INFO",
+    ord("r"): "RED",
+    ord("g"): "GREEN",
+    ord("y"): "YELLOW",
+    ord("b"): "BLUE",
+    ord("a"): "AUDIO",
+    ord("s"): "SUBTITLES",
+    32: "PLAY_PAUSE",
+    282: "F1",
+    283: "F2",
+    284: "F3",
+    285: "F4",
+    **{48 + d: f"KEY_{d}" for d in range(10)},
+}
+
+KEY_ID_LABELS = {
+    "UP": "GÓRA",
+    "DOWN": "DÓŁ",
+    "LEFT": "LEWO",
+    "RIGHT": "PRAWO",
+    "OK": "OK",
+    "BACK": "WSTECZ",
+    "MENU": "MENU",
+    "CH_UP": "CH+ / PG+",
+    "CH_DOWN": "CH- / PG-",
+    "GUIDE": "EPG / GUIDE",
+    "INFO": "INFO",
+    "RED": "CZERWONY",
+    "GREEN": "ZIELONY",
+    "YELLOW": "ŻÓŁTY",
+    "BLUE": "NIEBIESKI",
+    "AUDIO": "AUDIO",
+    "SUBTITLES": "NAPISY",
+    "PLAY_PAUSE": "PLAY/PAUSE",
+    "PLAY": "PLAY",
+    "PAUSE": "PAUSE",
+    "STOP": "STOP",
+    "REWIND": "REWIND",
+    "FAST_FWD": "FFWD",
+    "MEDIA_NEXT": "NASTĘPNY",
+    "MEDIA_PREV": "POPRZEDNI",
+    "PAGE_UP": "PAGE UP",
+    "PAGE_DOWN": "PAGE DOWN",
+    "MUTE": "MUTE",
+    "TV": "TV",
+    "LAST_CH": "OSTATNI",
+    "BOOKMARK": "ULUBIONE",
+    "STAR": "*",
+    "POUND": "#",
+    "F1": "F1",
+    "F2": "F2",
+    "F3": "F3",
+    "F4": "F4",
+    **{f"KEY_{d}": f"CYFRA {d}" for d in range(10)},
+}
 
 _CTRL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x85\x88\x89\x8b-\x9f]")
 _HTML_BR_RE = re.compile(r"<br\s*/?>", re.IGNORECASE)
@@ -139,11 +343,305 @@ def is_e2iplayer_sref(sref):
     return "e2iplayer://" in urllib.parse.unquote(uri_part).lower()
 
 
+def short_sref(sref):
+    """Zwraca 10-polowy prefiks DVB ServiceReference (do mapowania EPG dla strumieni z URL)."""
+    if not sref:
+        return ""
+    parts = sref.strip().split(":")
+    if len(parts) >= 10:
+        return ":".join(parts[:10]) + ":"
+    return sref.strip()
+
+
+def get_e2i_proxy_port(cfg):
+    """Zwraca aktywny port E2iStreamProxy (domyślnie 8099) lub pusty string gdy wyłączony (0)."""
+    raw = (cfg or {}).get("e2i_proxy_port", DEFAULT_E2I_PROXY_PORT)
+    val = str("" if raw is None else raw).strip()
+    if not val or val == "0":
+        return ""
+    if val.isdigit() and 1 <= int(val) <= 65535:
+        return val
+    return ""
+
+
+def _parse_link_res_score(name_str):
+    """Zwraca krotkę (px_area, height, width) z opisu linku (np. '1920x1080', '3840x2160'), albo (-1, -1, -1)."""
+    if not name_str:
+        return (-1, -1, -1)
+    best = None
+    for m in re.finditer(r"(\d{3,4})\s*[x×]\s*(\d{3,4})", str(name_str)):
+        w = int(m.group(1))
+        h = int(m.group(2))
+        if h == 1088:
+            h = 1080
+        elif h == 544:
+            h = 540
+        cand = (w * h, h, w)
+        if best is None or cand > best:
+            best = cand
+    return best if best is not None else (-1, -1, -1)
+
+
+def _format_top_res_variant_label(link_name, idx):
+    """Tworzy czytelny opis wariantu audio dla najwyższej rozdzielczości (bez obniżania rozdzielczości)."""
+    s = clean_epg_text(str(link_name or ""), single_line=True).strip()
+    if not s:
+        return f"Wariant #{idx}"
+
+    lang_map = {
+        "pl": "PL",
+        "pol": "PL",
+        "polski": "PL",
+        "qaa": "ORYG (qaa)",
+        "org": "ORYG",
+        "qad_desc": "Audiodeskrypcja",
+        "pl-x-aux_desc": "Audiodeskrypcja",
+        "audiodeskrypcja": "Audiodeskrypcja",
+        "en": "EN",
+        "eng": "EN",
+        "de": "DE",
+        "fr": "FR",
+    }
+    lang_tag = ""
+    m_lang = re.match(r"^\[([^\]]+)\]\s*(.*)$", s)
+    rest = s
+    if m_lang:
+        raw_lang = m_lang.group(1).strip()
+        lang_tag = lang_map.get(raw_lang.lower(), raw_lang.upper())
+        rest = m_lang.group(2).strip()
+
+    low = rest.lower()
+    audio_codec = ""
+    if "ec-3" in low or "eac3" in low:
+        audio_codec = "E-AC3 (DD+)"
+    elif "ac-3" in low or "ac3" in low or "a52" in low:
+        audio_codec = "AC3"
+    elif "mp4a" in low or "aac" in low:
+        audio_codec = "AAC"
+    elif "opus" in low:
+        audio_codec = "OPUS"
+    elif "mp3" in low or "mpga" in low:
+        audio_codec = "MPEG"
+
+    bitrate_txt = ""
+    m_br = re.search(r"\b(?:bitrate:\s*)?(\d{6,9})\b", rest, flags=re.IGNORECASE)
+    if m_br:
+        bps = int(m_br.group(1))
+        if bps >= 1000000:
+            bitrate_txt = f"{bps / 1000000.0:.1f} Mbps"
+        elif bps >= 1000:
+            bitrate_txt = f"{bps // 1000} kbps"
+
+    fps_txt = ""
+    m_fps = re.search(r"\b(\d{2,3})\s*fps\b", rest, flags=re.IGNORECASE)
+    if m_fps:
+        fps_txt = f"{m_fps.group(1)} fps"
+
+    parts = [p for p in (lang_tag, audio_codec, bitrate_txt, fps_txt) if p]
+    if len(parts) >= 2:
+        return "  •  ".join(parts)
+
+    cleaned = re.sub(r"\b\d{3,4}\s*[x×]\s*\d{3,4}\b", "", s)
+    cleaned = re.sub(r"\b(?:res|bitrate):\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" -|•")
+    return cleaned if cleaned else s
+
+
+def extract_top_res_audio_variants(links):
+    """Filtruje listę linków z /resolve do wariantów mających najwyższą rozdzielczość wideo.
+
+    Zwraca None, jeśli wariantów jest mniej niż 2 (np. tylko 1 strumień najwyższej rozdzielczości).
+    Każdy element to słownik: {'idx': int, 'label': str, 'raw_name': str, 'res_text': str}.
+    """
+    if not isinstance(links, list) or len(links) < 2:
+        return None
+
+    parsed = []
+    for pos, it in enumerate(links):
+        if not isinstance(it, dict):
+            continue
+        if str(it.get("needsResolve", "0")) != "0":
+            continue
+        raw_idx = it.get("idx", pos)
+        try:
+            idx = int(raw_idx)
+        except Exception:
+            idx = pos
+        raw_name = str(it.get("name") or "")
+        score = _parse_link_res_score(raw_name)
+        parsed.append((score, idx, raw_name))
+
+    if len(parsed) < 2:
+        return None
+
+    top_score = max(p[0] for p in parsed)
+    if top_score[0] <= 0:
+        return None
+
+    top_variants = [p for p in parsed if p[0] == top_score]
+    if len(top_variants) < 2:
+        return None
+
+    res_text = f"{top_score[2]}x{top_score[1]}"
+    out = []
+    for _, idx, raw_name in top_variants:
+        out.append({
+            "idx": idx,
+            "label": _format_top_res_variant_label(raw_name, idx),
+            "raw_name": raw_name,
+            "res_text": res_text,
+        })
+    return out
+
+
+def parse_e2iplayer_host(sref):
+    """Wyciąga nazwę hosta (np. canalplus, tvpvod, max) z zakodowanego payloadu E2iPlayer://."""
+    if not sref:
+        return ""
+    try:
+        m = re.search(r"E2iPlayer(?:%3[aA]|:)//([A-Za-z0-9_\-=]+)", sref)
+        if not m:
+            dec = urllib.parse.unquote(sref)
+            m = re.search(r"E2iPlayer://([A-Za-z0-9_\-=]+)", dec)
+        if not m:
+            return ""
+        b64_part = m.group(1)
+        pad = "=" * (-len(b64_part) % 4)
+        payload = json.loads(base64.urlsafe_b64decode((b64_part + pad).encode("ascii")).decode("utf-8"))
+        return str(payload.get("hostName") or payload.get("resolver") or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def extract_e2iplayer_name_id(sref):
+    """Wyciąga identyfikator sprzed E2iPlayer:// (np. C+Premium.pl -> cpluspremium) na potrzeby pikon."""
+    if not sref:
+        return ""
+    parts = sref.split(":", 10)
+    if len(parts) < 11:
+        return ""
+    uri_part = parts[10].split(":", 1)[0]
+    m = re.split(r"E2iPlayer(?:%3[aA]|:)//", uri_part, maxsplit=1)
+    if len(m) < 2 or not m[0]:
+        return ""
+    prefix = m[0].strip()
+    if "." in prefix:
+        prefix = prefix.rsplit(".", 1)[0]
+    prefix = prefix.replace("&", "and").replace("+", "plus")
+    return re.sub(r"[^a-zA-Z0-9]+", "", prefix).lower()
+
+
+def format_e2i_source_tag(sref):
+    host = parse_e2iplayer_host(sref)
+    if not host:
+        return "E2I PROXY"
+    lbl = E2I_HOST_LABELS.get(host, host.upper())
+    return f"E2I • {lbl}"
+
+
+def is_valid_ipv4(ip_str):
+    parts = (ip_str or "").strip().split(".")
+    return len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts)
+
+
+def probe_e2i_proxy_status(cfg, timeout=2.5, ip_override=None):
+    """Sprawdza czy na dekoderze działa aktywny serwis E2iStreamProxy (/status)."""
+    ip = (ip_override if ip_override is not None else (cfg or {}).get("ip", "")).strip()
+    port = get_e2i_proxy_port(cfg)
+    if not ip or not port:
+        return False
+    try:
+        url = f"http://{ip}:{port}/status"
+        req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            if getattr(resp, "status", 200) != 200:
+                return False
+            data = json.loads(resp.read().decode("utf-8", "replace"))
+            return isinstance(data, dict) and data.get("service") == "E2iStreamProxy"
+    except Exception:
+        return False
+
+
+def notify_e2i_proxy_stop(cfg, ip_override=None):
+    """Asynchronicznie zwalnia bieżącą sesję tego klienta w E2iStreamProxy (/stop?self=1)."""
+    ip = (ip_override if ip_override is not None else (cfg or {}).get("ip", "")).strip()
+    port = get_e2i_proxy_port(cfg)
+    if not ip or not port:
+        return
+
+    def _worker():
+        try:
+            url = f"http://{ip}:{port}/stop?self=1"
+            req = urllib.request.Request(url, headers={"User-Agent": "EnigmaTV-Python"})
+            with urllib.request.urlopen(req, timeout=2.0):
+                pass
+        except Exception:
+            pass
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
 def pig_mode_label(mode_key):
     for k, lbl in PIG_MODES:
         if k == mode_key:
             return lbl
     return PIG_MODES[0][1]
+
+
+def remote_mode_label(mode_key):
+    for k, lbl in REMOTE_MODES:
+        if k == mode_key:
+            return lbl
+    return REMOTE_MODES[0][1]
+
+
+def android_kc_to_key_id(kc):
+    if kc in ANDROID_KC_TO_KEY_ID:
+        return ANDROID_KC_TO_KEY_ID[kc]
+    return f"ANDROID_{int(kc)}" if kc is not None and int(kc) > 0 else ""
+
+
+def kivy_key_to_key_id(nkey):
+    if nkey in KIVY_KEY_TO_KEY_ID:
+        return KIVY_KEY_TO_KEY_ID[nkey]
+    if nkey is not None and 32 < int(nkey) < 127:
+        return f"CHAR_{chr(int(nkey)).upper()}"
+    return f"KEY_{int(nkey)}" if nkey is not None and int(nkey) > 0 else ""
+
+
+def key_id_to_label(key_id):
+    if not key_id:
+        return "(brak)"
+    if key_id in KEY_ID_LABELS:
+        return KEY_ID_LABELS[key_id]
+    if key_id.startswith("ANDROID_"):
+        return f"PILOT #{key_id[8:]}"
+    if key_id.startswith("CHAR_"):
+        return key_id[5:]
+    if key_id.startswith("KEY_"):
+        return f"KLAWISZ #{key_id[4:]}"
+    return str(key_id)
+
+
+def normalize_custom_keymap(raw_map):
+    out = dict(DEFAULT_CUSTOM_KEYMAP_ANDROID)
+    if isinstance(raw_map, dict):
+        for aid in CUSTOM_ACTION_META:
+            if aid in raw_map:
+                val = raw_map.get(aid)
+                out[aid] = str(val).strip() if val else ""
+    return out
+
+
+def extract_custom_android_keycodes(keymap):
+    """Zwraca listę niestandardowych kodów Android (CSV) do zarejestrowania w PythonActivity."""
+    codes = []
+    for kid in (keymap or {}).values():
+        if isinstance(kid, str) and kid.startswith("ANDROID_"):
+            num = kid[8:]
+            if num.isdigit():
+                codes.append(num)
+    return ",".join(sorted(set(codes)))
 
 
 def build_auth_headers(username="", password=""):
@@ -179,6 +677,9 @@ C_ERROR = (0.95, 0.35, 0.35, 1)
 C_KEY_RED = (0.94, 0.22, 0.24, 1)
 C_KEY_RED_DIM = (0.94, 0.22, 0.24, 0.14)
 C_KEY_RED_RING = (0.94, 0.22, 0.24, 0.52)
+C_KEY_GREEN = (0.24, 0.88, 0.48, 1)
+C_KEY_GREEN_DIM = (0.24, 0.88, 0.48, 0.14)
+C_KEY_GREEN_RING = (0.24, 0.88, 0.48, 0.52)
 
 PL_DAYS = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 PL_MONTHS = [
@@ -293,6 +794,19 @@ class DesktopVLCBackend:
     def get_status(self):
         return ""
 
+    def get_playback_state(self):
+        if not self.is_playing:
+            return 0
+        if self._proc is not None:
+            rc = self._proc.poll()
+            if rc is not None:
+                return -1 if rc != 0 else 0
+            return 2
+        return 0
+
+    def set_infobar_hint(self, hint_text):
+        pass
+
     def play_pig(self, url, sref, name, widget=None):
         vlc = self._find_vlc()
         if not vlc:
@@ -337,6 +851,12 @@ class DesktopVLCBackend:
     def open_track_menu(self, tab=0):
         pass
 
+    def open_custom_audio_menu(self, title_text, variants, current_idx):
+        return False
+
+    def poll_custom_audio_choice(self):
+        return -1
+
     def close_track_menu(self):
         pass
 
@@ -375,6 +895,7 @@ class AndroidLibVLCBackend:
         self._muted = False
         self._volume = 100
         self._ctrl = None
+        self._infobar_hint = ""
 
     def _ensure_init(self):
         if self._initialized:
@@ -384,6 +905,11 @@ class AndroidLibVLCBackend:
             from jnius import autoclass
             self._ctrl = autoclass("org.kivy.android.TvVlcController")
             self.is_embedded = True
+            if self._infobar_hint:
+                try:
+                    self._ctrl.setInfobarHint(self._infobar_hint)
+                except Exception:
+                    pass
             return True
         except Exception:
             self._use_intent = True
@@ -424,6 +950,24 @@ class AndroidLibVLCBackend:
             except Exception:
                 return ""
         return ""
+
+    def get_playback_state(self):
+        if self.is_embedded and self._ctrl:
+            try:
+                return int(self._ctrl.getPlaybackState())
+            except Exception:
+                return 0
+        return 0
+
+    def set_infobar_hint(self, hint_text):
+        if not hint_text:
+            return
+        self._infobar_hint = str(hint_text)
+        if self.is_embedded and self._ctrl:
+            try:
+                self._ctrl.setInfobarHint(self._infobar_hint)
+            except Exception:
+                pass
 
     def sync_pig_widget(self, widget):
         if not self.is_embedded or not self.is_playing or not self._ctrl or not widget:
@@ -467,6 +1011,8 @@ class AndroidLibVLCBackend:
         if not self.is_embedded or not self._ctrl or not data:
             return
         try:
+            if self._infobar_hint:
+                self._ctrl.setInfobarHint(self._infobar_hint)
             self._ctrl.showInfobarRich(
                 clean_epg_text(data.get("ch_title", ""), single_line=True),
                 str(data.get("now_time", "")),
@@ -518,6 +1064,27 @@ class AndroidLibVLCBackend:
                 self._ctrl.openTrackMenu(int(tab))
             except Exception:
                 pass
+
+    def open_custom_audio_menu(self, title_text, variants, current_idx):
+        if not self.is_embedded or not self._ctrl or not variants:
+            return False
+        try:
+            payload = json.dumps(
+                [{"id": int(v.get("idx", 0)), "label": str(v.get("label", ""))} for v in variants],
+                ensure_ascii=False,
+            )
+            self._ctrl.openCustomAudioMenu(str(title_text or "AUDIO I NAPISY"), payload, int(current_idx))
+            return True
+        except Exception:
+            return False
+
+    def poll_custom_audio_choice(self):
+        if self.is_embedded and self._ctrl:
+            try:
+                return int(self._ctrl.pollCustomAudioChoice())
+            except Exception:
+                return -1
+        return -1
 
     def close_track_menu(self):
         if self.is_embedded and self._ctrl:
@@ -613,20 +1180,22 @@ class EnigmaFrame(BoxLayout):
 
 
 class RedKeyIcon(Widget):
-    """Wektorowa grafika czerwonego klucza (mała na liście, większa w oknie/PIP)."""
-    def __init__(self, glow=False, **kwargs):
+    """Wektorowa grafika klucza (czerwony = brak proxy, zielony = aktywny E2iStreamProxy)."""
+    def __init__(self, glow=False, color=C_KEY_RED, **kwargs):
         super().__init__(**kwargs)
         self._glow = glow
         with self.canvas:
             if glow:
-                self._halo_col = Color(*C_KEY_RED_DIM)
+                self._halo_col = Color(color[0], color[1], color[2], 0.14)
                 self._halo_fill = Ellipse(pos=self.pos, size=(0, 0))
-                self._halo_bd_col = Color(*C_KEY_RED_RING)
+                self._halo_bd_col = Color(color[0], color[1], color[2], 0.52)
                 self._halo_bd = Line(circle=(0, 0, 1), width=dp(1.4))
             else:
+                self._halo_col = None
+                self._halo_bd_col = None
                 self._halo_fill = None
                 self._halo_bd = None
-            self._key_col = Color(*C_KEY_RED)
+            self._key_col = Color(*color)
             self._bow = Line(circle=(0, 0, 1), width=dp(1.3))
             self._shaft = RoundedRectangle(pos=self.pos, size=(0, 0), radius=[dp(2)])
             self._tooth1 = RoundedRectangle(pos=self.pos, size=(0, 0), radius=[dp(1)])
@@ -692,10 +1261,16 @@ class RedKeyIcon(Widget):
         self._tooth2.size = (t2_w, t2_h)
         self._tooth2.radius = [max(dp(0.8), t2_w * 0.25)]
 
+    def set_color(self, color, dim_color=None, ring_color=None):
+        self._key_col.rgba = color
+        if self._glow and self._halo_col is not None and self._halo_bd_col is not None:
+            self._halo_col.rgba = dim_color or (color[0], color[1], color[2], 0.14)
+            self._halo_bd_col.rgba = ring_color or (color[0], color[1], color[2], 0.52)
+
 
 class EncryptedStreamModal(ModalView):
     """Okno informacyjne po włączeniu szyfrowanego kanału (format wtyczkowy E2iPlayer)."""
-    def __init__(self, channel_name="", **kwargs):
+    def __init__(self, channel_name="", detail_text="", **kwargs):
         super().__init__(
             size_hint=(0.55, None),
             height=dp(430),
@@ -736,10 +1311,11 @@ class EncryptedStreamModal(ModalView):
             "Ten streaming jest szyfrowany", 16, C_KEY_RED, halign="center", bold=True,
             size_hint_y=None, height=dp(24), shorten=False,
         ))
+        info_msg = detail_text or "Włącz port E2iStreamProxy (domyślnie 8099) w Ustawieniach lub uruchom plugin na dekoderze."
         frame.add_widget(make_label(
-            "Kanał w formacie wtyczki E2iPlayer nie jest obsługiwany bezpośrednio.",
+            info_msg,
             13, C_GRAY, halign="center", valign="top", shorten=False,
-            size_hint_y=None, height=dp(20),
+            size_hint_y=None, height=dp(36),
         ))
         
         frame.add_widget(Widget(size_hint_y=None, height=dp(10)))
@@ -756,6 +1332,389 @@ class EncryptedStreamModal(ModalView):
         if key in (13, 271, 23, 27):
             self.dismiss()
             return True
+        return True
+
+
+class E2iAudioVariantModal(ModalView):
+    """Wybór strumienia o najwyższej rozdzielczości na liście kanałów (nie zasłania PIG)."""
+    def __init__(self, channel_name, variants, current_idx, on_select, **kwargs):
+        row_h = dp(42)
+        list_h = min(dp(340), max(dp(90), len(variants) * (row_h + dp(5))))
+        total_h = min(Window.height * 0.88, dp(155) + list_h)
+        super().__init__(
+            size_hint=(0.58, None),
+            height=total_h,
+            pos_hint={"right": 0.98, "center_y": 0.5},
+            background_color=(0, 0, 0, 0.55),
+            **kwargs,
+        )
+        self.variants = list(variants or [])
+        self.on_select = on_select
+        res_tag = self.variants[0].get("res_text", "") if self.variants else ""
+
+        init_pos = 0
+        for i, v in enumerate(self.variants):
+            if v.get("idx") == current_idx:
+                init_pos = i
+                break
+        self.sel_idx = init_pos
+        self.rows = []
+
+        frame = EnigmaFrame(
+            bg=(0.030, 0.038, 0.058, 0.99),
+            border=C_KEY_GREEN,
+            radius=14,
+            lw=1.6,
+            orientation="vertical",
+            padding=(dp(20), dp(16)),
+            spacing=dp(8),
+        )
+        hdr_txt = f"ŚCIEŻKA AUDIO  •  {res_tag}" if res_tag else "WYBÓR ŚCIEŻKI AUDIO"
+        frame.add_widget(make_label(
+            hdr_txt, 13, C_KEY_GREEN, halign="center", bold=True,
+            size_hint_y=None, height=dp(20), shorten=False,
+        ))
+        ch_clean = clean_epg_text(channel_name, single_line=True)
+        if ch_clean:
+            frame.add_widget(make_label(
+                ch_clean, 17, C_WHITE, halign="center", bold=True,
+                size_hint_y=None, height=dp(26),
+            ))
+
+        self.scroll = ScrollView(bar_width=dp(4), bar_color=C_CYAN)
+        box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(5))
+        box.bind(minimum_height=box.setter("height"))
+
+        for i, v in enumerate(self.variants):
+            active_mark = "[AKTYWNA]  " if v.get("idx") == current_idx else "   "
+            btn = PillButton(
+                text=f"{active_mark}{v.get('label', '')}",
+                accent=C_KEY_GREEN if v.get("idx") == current_idx else C_CYAN,
+                font_size=14.5,
+                size_hint_y=None,
+                height=row_h,
+            )
+            btn.lbl.halign = "left"
+            btn.padding = (dp(14), dp(4))
+            btn.bind(on_release=lambda *a, pos=i: self._choose(pos))
+            box.add_widget(btn)
+            self.rows.append(btn)
+
+        self.scroll.add_widget(box)
+        frame.add_widget(self.scroll)
+
+        frame.add_widget(make_label(
+            "Góra/Dół = wybór   •   OK = włącz   •   Wstecz = zamknij",
+            12, C_MUTED, halign="center", size_hint_y=None, height=dp(20), shorten=False,
+        ))
+        self.add_widget(frame)
+        self._refresh()
+
+    def _refresh(self):
+        for i, r in enumerate(self.rows):
+            v = self.variants[i]
+            is_cur = (v.get("idx") == self.variants[self.sel_idx].get("idx")) if False else (i == self.sel_idx)
+            r.set_tv_focus(is_cur)
+        if self.rows:
+            self.scroll.scroll_to(self.rows[self.sel_idx], padding=dp(20), animate=False)
+
+    def _choose(self, pos):
+        if 0 <= pos < len(self.variants):
+            chosen = self.variants[pos]
+            self.dismiss()
+            if self.on_select:
+                self.on_select(chosen)
+
+    def handle_key(self, key):
+        if not self.rows:
+            self.dismiss()
+            return True
+        if key == 273:
+            self.sel_idx = (self.sel_idx - 1) % len(self.rows)
+            self._refresh()
+            return True
+        if key == 274:
+            self.sel_idx = (self.sel_idx + 1) % len(self.rows)
+            self._refresh()
+            return True
+        if key in (13, 271, 23, 275):
+            self._choose(self.sel_idx)
+            return True
+        if key in (27, 276):
+            self.dismiss()
+            return True
+        return True
+
+
+class CustomRemoteModal(ModalView):
+    """Inteligentny konfigurator własnych klawiszy pilota (uczenie na żywo + rozwiązywanie konfliktów)."""
+    def __init__(self, initial_keymap, on_save, **kwargs):
+        super().__init__(
+            size_hint=(0.78, 0.90),
+            pos_hint={"center_x": 0.5, "center_y": 0.5},
+            background_color=(0, 0, 0, 0.72),
+            auto_dismiss=False,
+            **kwargs,
+        )
+        self.keymap = normalize_custom_keymap(initial_keymap)
+        self.on_save = on_save
+        self.zone = "list"      # "list" | "buttons"
+        self.sel_idx = 0
+        self.btn_idx = 0        # 0=ZAPISZ, 1=BAZA ANDROID, 2=BAZA ENIGMA2, 3=ANULUJ
+        self.capturing_action_id = None
+        self.action_rows = []
+        self.action_ids = []
+
+        frame = EnigmaFrame(
+            bg=(0.028, 0.036, 0.056, 0.99),
+            border=C_CYAN,
+            radius=14,
+            lw=1.6,
+            orientation="vertical",
+            padding=(dp(18), dp(14)),
+            spacing=dp(7),
+        )
+        frame.add_widget(make_label(
+            "WŁASNE STEROWANIE PILOTEM", 17.5, C_CYAN, halign="center", bold=True,
+            size_hint_y=None, height=dp(26), shorten=False,
+        ))
+        self.banner_lbl = make_label(
+            "Wybierz funkcję i naciśnij OK, aby przypisać klawisz z pilota  |  DEL = wyczyść  |  WSTECZ = zamknij",
+            12.5, C_GRAY, halign="center", size_hint_y=None, height=dp(22), shorten=False,
+        )
+        frame.add_widget(self.banner_lbl)
+
+        self.scroll = ScrollView(bar_width=dp(5), bar_color=C_CYAN, do_scroll_x=False)
+        box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=dp(4), padding=(0, dp(2), dp(6), dp(2)))
+        box.bind(minimum_height=box.setter("height"))
+
+        last_grp = None
+        for aid, grp, title, _short in CUSTOM_REMOTE_ACTIONS:
+            if grp != last_grp:
+                last_grp = grp
+                sec_title = "──  PEŁNY EKRAN (OGLĄDANIE TV)  ──" if grp == "player" else "──  LISTA KANAŁÓW  ──"
+                box.add_widget(make_label(
+                    sec_title, 12, C_MINT if grp == "player" else C_CYAN, halign="center", bold=True,
+                    size_hint_y=None, height=dp(22), shorten=False,
+                ))
+            row_idx = len(self.action_ids)
+            row = self._make_action_row(row_idx, aid, title)
+            box.add_widget(row)
+            self.action_rows.append(row)
+            self.action_ids.append(aid)
+
+        self.scroll.add_widget(box)
+        frame.add_widget(self.scroll)
+
+        btn_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=dp(40), spacing=dp(8))
+        self.btn_save = PillButton(text="ZAPISZ", accent=C_MINT, font_size=13.5)
+        self.btn_save.bind(on_release=lambda *a: self._save_and_close())
+        self.btn_android = PillButton(text="Baza: Android", accent=C_CYAN, font_size=13)
+        self.btn_android.bind(on_release=lambda *a: self._load_preset("android"))
+        self.btn_enigma2 = PillButton(text="Baza: Enigma2", accent=(0.92, 0.78, 0.22, 1), font_size=13)
+        self.btn_enigma2.bind(on_release=lambda *a: self._load_preset("enigma2"))
+        self.btn_cancel = PillButton(text="ANULUJ", accent=C_MUTED, font_size=13.5)
+        self.btn_cancel.bind(on_release=lambda *a: self.dismiss())
+        self.bottom_btns = [self.btn_save, self.btn_android, self.btn_enigma2, self.btn_cancel]
+        for b in self.bottom_btns:
+            btn_row.add_widget(b)
+        frame.add_widget(btn_row)
+
+        self.add_widget(frame)
+        self.bind(on_dismiss=self._on_modal_dismiss)
+        self._refresh_ui()
+
+    def _make_action_row(self, idx, aid, title):
+        row = PillButton(text="", accent=C_CYAN, font_size=13.5, size_hint_y=None, height=dp(38))
+        row.remove_widget(row.lbl)
+        row.orientation = "horizontal"
+        row.padding = (dp(12), dp(4))
+        row.spacing = dp(8)
+        row._title_lbl = make_label(title, 13.5, C_WHITE, bold=False)
+        row._key_lbl = make_label("", 13.5, C_CYAN, halign="right", bold=True, size_hint_x=None, width=dp(155), shorten=False)
+        row.add_widget(row._title_lbl)
+        row.add_widget(row._key_lbl)
+        row.bind(on_release=lambda *a, i=idx: self._on_row_click(i))
+        return row
+
+    def is_capturing(self):
+        return self.capturing_action_id is not None
+
+    def _set_capture(self, aid):
+        self.capturing_action_id = aid
+        app = App.get_running_app()
+        if app and hasattr(app, "set_android_key_capture"):
+            app.set_android_key_capture(aid is not None)
+        if aid is not None:
+            meta = CUSTOM_ACTION_META.get(aid, {})
+            self.banner_lbl.color = (1.0, 0.84, 0.28, 1)
+            self.banner_lbl.text = f"NASŁUCHIWANIE: Naciśnij klawisz na pilocie dla [{meta.get('title', aid)}]  (WSTECZ = anuluj)"
+        self._refresh_ui()
+
+    def _on_modal_dismiss(self, *args):
+        self.capturing_action_id = None
+        app = App.get_running_app()
+        if app and hasattr(app, "set_android_key_capture"):
+            app.set_android_key_capture(False)
+
+    def _on_row_click(self, idx):
+        self.zone = "list"
+        self.sel_idx = idx
+        self._set_capture(self.action_ids[idx])
+
+    def _load_preset(self, preset_name):
+        if preset_name == "enigma2":
+            self.keymap = dict(DEFAULT_CUSTOM_KEYMAP_ENIGMA2)
+            self.banner_lbl.color = C_MINT
+            self.banner_lbl.text = "Załadowano bazowy układ: Enigma2. Możesz dostosować wybrane klawisze i nacisnąć ZAPISZ."
+        else:
+            self.keymap = dict(DEFAULT_CUSTOM_KEYMAP_ANDROID)
+            self.banner_lbl.color = C_CYAN
+            self.banner_lbl.text = "Załadowano bazowy układ: Android. Możesz dostosować wybrane klawisze i nacisnąć ZAPISZ."
+        self._refresh_ui()
+
+    def _save_and_close(self):
+        self._set_capture(None)
+        self.dismiss()
+        if self.on_save:
+            self.on_save(dict(self.keymap))
+
+    def on_captured_key(self, key_id):
+        aid = self.capturing_action_id
+        if not aid:
+            return False
+        if not key_id or key_id == "BACK":
+            self._set_capture(None)
+            self.banner_lbl.color = C_GRAY
+            self.banner_lbl.text = "Anulowano przypisywanie klawisza."
+            return True
+
+        target_group = CUSTOM_ACTION_META[aid]["group"]
+        cleared_titles = []
+        for other_aid, other_kid in list(self.keymap.items()):
+            if other_aid != aid and other_kid == key_id:
+                if CUSTOM_ACTION_META.get(other_aid, {}).get("group") == target_group:
+                    self.keymap[other_aid] = ""
+                    cleared_titles.append(CUSTOM_ACTION_META[other_aid]["title"])
+
+        self.keymap[aid] = key_id
+        self._set_capture(None)
+        lbl = key_id_to_label(key_id)
+        self.banner_lbl.color = C_MINT
+        if cleared_titles:
+            self.banner_lbl.text = f"Przypisano [{lbl}]  (przeniesiono z: {cleared_titles[0]})"
+        else:
+            self.banner_lbl.text = f"Przypisano [{lbl}] do: {CUSTOM_ACTION_META[aid]['title']}"
+        return True
+
+    def _clear_selected(self):
+        if self.zone == "list" and 0 <= self.sel_idx < len(self.action_ids):
+            aid = self.action_ids[self.sel_idx]
+            self.keymap[aid] = ""
+            self.banner_lbl.color = C_GRAY
+            self.banner_lbl.text = f"Wyczyszczono przypisanie dla: {CUSTOM_ACTION_META[aid]['title']}"
+            self._refresh_ui()
+
+    def _refresh_ui(self):
+        for i, row in enumerate(self.action_rows):
+            aid = self.action_ids[i]
+            kid = self.keymap.get(aid, "")
+            is_cap = (self.capturing_action_id == aid)
+            is_foc = (self.zone == "list" and i == self.sel_idx)
+            if is_cap:
+                row._bg_col.rgba = (0.36, 0.28, 0.06, 0.98)
+                row._bd_col.rgba = (1.0, 0.82, 0.25, 1)
+                row._bd_line.width = 2.0
+                row._acc_col.rgba = (1.0, 0.82, 0.25, 1)
+                row._title_lbl.color = (1, 1, 1, 1)
+                row._key_lbl.color = (1.0, 0.88, 0.40, 1)
+                row._key_lbl.text = "[NACIŚNIJ KLAWISZ...]"
+            elif is_foc:
+                row._bg_col.rgba = C_FOCUS_BG
+                row._bd_col.rgba = C_CYAN
+                row._bd_line.width = 1.9
+                row._acc_col.rgba = C_CYAN
+                row._title_lbl.color = (1, 1, 1, 1)
+                row._key_lbl.color = (1, 1, 1, 1)
+                row._key_lbl.text = f"[{key_id_to_label(kid)}]"
+            else:
+                row._bg_col.rgba = (0.06, 0.078, 0.11, 0.90)
+                row._bd_col.rgba = (0.24, 0.29, 0.36, 0.55)
+                row._bd_line.width = 1.0
+                row._acc_col.rgba = C_MINT if kid else (0.3, 0.34, 0.4, 0.4)
+                row._title_lbl.color = C_WHITE
+                row._key_lbl.color = C_MINT if kid else C_MUTED
+                row._key_lbl.text = key_id_to_label(kid)
+
+        for j, b in enumerate(self.bottom_btns):
+            b.set_tv_focus(self.zone == "buttons" and j == self.btn_idx, danger=(j == 3))
+
+        if self.zone == "list" and self.action_rows:
+            self.scroll.scroll_to(self.action_rows[self.sel_idx], padding=dp(24), animate=False)
+
+    def handle_key(self, key):
+        if self.capturing_action_id is not None:
+            return self.on_captured_key(kivy_key_to_key_id(key))
+
+        if key == 8:
+            self._clear_selected()
+            return True
+
+        if self.zone == "list":
+            if key == 273:
+                if self.sel_idx > 0:
+                    self.sel_idx -= 1
+                else:
+                    self.zone = "buttons"
+                    self.btn_idx = 0
+                self._refresh_ui()
+                return True
+            if key == 274:
+                if self.sel_idx < len(self.action_rows) - 1:
+                    self.sel_idx += 1
+                else:
+                    self.zone = "buttons"
+                    self.btn_idx = 0
+                self._refresh_ui()
+                return True
+            if key in (13, 271, 23, 275):
+                self._set_capture(self.action_ids[self.sel_idx])
+                return True
+            if key == 27:
+                self.dismiss()
+                return True
+        else:
+            if key == 273:
+                self.zone = "list"
+                self.sel_idx = len(self.action_rows) - 1
+                self._refresh_ui()
+                return True
+            if key == 274:
+                self.zone = "list"
+                self.sel_idx = 0
+                self._refresh_ui()
+                return True
+            if key == 276:
+                self.btn_idx = (self.btn_idx - 1) % len(self.bottom_btns)
+                self._refresh_ui()
+                return True
+            if key == 275:
+                self.btn_idx = (self.btn_idx + 1) % len(self.bottom_btns)
+                self._refresh_ui()
+                return True
+            if key in (13, 271, 23):
+                if self.btn_idx == 0:
+                    self._save_and_close()
+                elif self.btn_idx == 1:
+                    self._load_preset("android")
+                elif self.btn_idx == 2:
+                    self._load_preset("enigma2")
+                else:
+                    self.dismiss()
+                return True
+            if key == 27:
+                self.dismiss()
+                return True
         return True
 
 
@@ -992,7 +1951,7 @@ class PillButton(ButtonBehavior, BoxLayout):
 class TVSettingField(ButtonBehavior, BoxLayout):
     """Pole konfiguracji przyjazne pilotowi Android TV z wyraźnym fokusem i wskaźnikiem edycji."""
     def __init__(self, title, value, hint="", empty_placeholder="", is_password=False, **kwargs):
-        super().__init__(orientation="vertical", padding=(dp(10), dp(3)), spacing=dp(0), **kwargs)
+        super().__init__(orientation="vertical", padding=(dp(10), dp(2)), spacing=dp(0), **kwargs)
         self._value = value
         self._empty_placeholder = empty_placeholder
         self._is_password = is_password
@@ -1005,14 +1964,14 @@ class TVSettingField(ButtonBehavior, BoxLayout):
             self._bd_line = Line(rounded_rectangle=(self.x, self.y, self.width, self.height, dp(7)), width=1.0)
         self.bind(pos=self._redraw, size=self._redraw)
 
-        top = BoxLayout(size_hint_y=None, height=dp(14))
-        self.title_lbl = make_label(title, 11, C_GRAY, bold=True)
-        self.hint_lbl = make_label(hint, 10, C_MUTED, halign="right", size_hint_x=None, width=dp(145))
+        top = BoxLayout(size_hint_y=None, height=dp(13))
+        self.title_lbl = make_label(title, 10.5, C_GRAY, bold=True)
+        self.hint_lbl = make_label(hint, 9.5, C_MUTED, halign="right", size_hint_x=None, width=dp(145))
         top.add_widget(self.title_lbl)
         top.add_widget(self.hint_lbl)
         self.add_widget(top)
 
-        self.val_lbl = make_label("", 14.5, C_WHITE, bold=True)
+        self.val_lbl = make_label("", 13.5, C_WHITE, bold=True)
         self.add_widget(self.val_lbl)
         self._refresh_visual()
 
@@ -1173,6 +2132,9 @@ class PiconManager:
                 cleaned = sref.strip().rstrip(":").replace(":", "_")
                 if cleaned:
                     names.append(cleaned)
+            e2i_nid = extract_e2iplayer_name_id(sref)
+            if e2i_nid:
+                names.append(e2i_nid)
         
         if channel_name:
             # Zastąpienie znaków specjalnych
@@ -1331,8 +2293,14 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
         if not self.is_marker and self.current_sref:
             self.on_slot_click(self.slot_idx)
 
-    def _set_encrypted_icon(self, show):
-        if show:
+    def _set_key_icon(self, mode):
+        if mode == "green":
+            self.key_icon.set_color(C_KEY_GREEN, C_KEY_GREEN_DIM, C_KEY_GREEN_RING)
+            self.key_icon.width = dp(22)
+            self.key_icon.opacity = 1
+            self.name_wrap.spacing = dp(6)
+        elif mode == "red":
+            self.key_icon.set_color(C_KEY_RED, C_KEY_RED_DIM, C_KEY_RED_RING)
             self.key_icon.width = dp(22)
             self.key_icon.opacity = 1
             self.name_wrap.spacing = dp(6)
@@ -1348,7 +2316,7 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
         self.picon_wrap.width, self.picon_wrap.opacity = 0, 0
         self.picon_img.texture, self.picon_img.opacity = None, 0
         self._set_selected(False)
-        self._set_encrypted_icon(False)
+        self._set_key_icon("none")
 
     def bind_marker(self, title):
         self.current_sref, self.is_marker = "", True
@@ -1362,19 +2330,24 @@ class ChannelRowWidget(ButtonBehavior, BoxLayout):
             t = f"--- {t} ---"
         self.text_lbl.text = f"[color=#66C7F5]»[/color]  [color=#B8C6D6][b]{t}[/b][/color]"
         self._set_selected(False)
-        self._set_encrypted_icon(False)
+        self._set_key_icon("none")
 
-    def bind_channel(self, item, selected, epg_event, picon_manager, is_live=False):
+    def bind_channel(self, item, selected, epg_event, picon_manager, is_live=False, is_blocked=None, key_mode=None):
         self.is_marker = False
         sref = item.get("sref", "")
         name = clean_epg_text(item.get("name", ""), single_line=True)
-        is_enc = bool(item.get("encrypted", False))
+        if key_mode is None:
+            is_enc = bool(item.get("encrypted", False)) if is_blocked is None else bool(is_blocked)
+            mode = "red" if is_enc else "none"
+        else:
+            mode = key_mode
+            is_enc = (mode == "red")
         self.current_sref = sref
         self.num_lbl.width, self.bar_wrap.width, self.bar_wrap.opacity = dp(42), dp(42), 1
         self.picon_wrap.width, self.picon_wrap.opacity = dp(48), 1
         self.num_lbl.text = str(item.get("num", 0))
         self.num_lbl.color = C_CYAN if selected else C_WHITE
-        self._set_encrypted_icon(is_enc)
+        self._set_key_icon(mode)
 
         epg_title = ""
         if epg_event and epg_event.get("title"):
@@ -1470,7 +2443,7 @@ class BouquetModal(ModalView):
                 (0.68, 0.56, 0.98, 1), (0.85, 0.79, 1.00, 1), (0.24, 0.18, 0.44, 0.98),
             ),
             (
-                "▸  Ustawienia IP, logowania, pikon i PIP", on_settings,
+                "▸  Ustawienia IP, logowania, proxy i PIP", on_settings,
                 (0.19, 0.11, 0.05, 0.94), (0.72, 0.44, 0.18, 0.70),
                 (0.96, 0.60, 0.24, 1), (1.00, 0.82, 0.60, 1), (0.38, 0.21, 0.08, 0.98),
             ),
@@ -1586,7 +2559,7 @@ class BouquetModal(ModalView):
 # EKRANY APLIKACJI
 # =============================================================================
 class SettingsScreen(Screen):
-    """Konfiguracja v1.3: logowanie OpenWebif, checkbox autoryzacji strumienia oraz przełączana klawiatura TV."""
+    """Konfiguracja v1.71: Dekoder podstawowy/zapasowy, OpenWebif, E2iStreamProxy, pikony, PIP i tryb pilota."""
     KB_MODES = ["123", "abc", "ABC", "#@!"]
     KB_LAYOUTS = {
         "123": [
@@ -1616,18 +2589,35 @@ class SettingsScreen(Screen):
     }
     KB_ACTIONS = ["WYCZYŚĆ", "GOTOWE", "ZAPISZ"]
 
-    # Indeksy pól w lewej kolumnie:
-    # 0=IP, 1=Użytkownik, 2=Hasło, 3=Checkbox strumień 8001, 4=Port Web, 5=Port Stream, 6=Picon, 7=PIP
-    # Przyciski dolne: 8=ZAPISZ, 9=ANULUJ, 10=ZAMKNIJ
-    EDITABLE_FIELDS = (0, 1, 2, 4, 5, 6)
-    NUMERIC_FIELDS = (0, 4, 5)
+    IDX_IP = 0
+    IDX_BACKUP_IP = 1
+    IDX_USER = 2
+    IDX_PASS = 3
+    IDX_STREAM_AUTH = 4
+    IDX_WEB_PORT = 5
+    IDX_STREAM_PORT = 6
+    IDX_E2I_PORT = 7
+    IDX_PICON = 8
+    IDX_PIG_MODE = 9
+    IDX_REMOTE_MODE = 10
+    IDX_BTN_SAVE = 11
+    IDX_BTN_CANCEL = 12
+    IDX_BTN_EXIT = 13
+
+    EDITABLE_FIELDS = (IDX_IP, IDX_BACKUP_IP, IDX_USER, IDX_PASS, IDX_WEB_PORT, IDX_STREAM_PORT, IDX_E2I_PORT, IDX_PICON)
+    NUMERIC_FIELDS = (IDX_IP, IDX_BACKUP_IP, IDX_WEB_PORT, IDX_STREAM_PORT, IDX_E2I_PORT)
+    IP_FIELDS = (IDX_IP, IDX_BACKUP_IP)
+    PORT_FIELDS = (IDX_WEB_PORT, IDX_STREAM_PORT, IDX_E2I_PORT)
+
     FIELD_NAMES = {
-        0: "Adres IP dekodera",
-        1: "Użytkownik OpenWebif",
-        2: "Hasło OpenWebif",
-        4: "Port OpenWebif",
-        5: "Port strumienia",
-        6: "Ścieżka pikon w dekoderze",
+        IDX_IP: "Adres IP dekodera podstawowego",
+        IDX_BACKUP_IP: "Adres IP dekodera zapasowego",
+        IDX_USER: "Użytkownik OpenWebif",
+        IDX_PASS: "Hasło OpenWebif",
+        IDX_WEB_PORT: "Port OpenWebif",
+        IDX_STREAM_PORT: "Port strumienia",
+        IDX_E2I_PORT: "Port E2iStreamProxy (0=wył)",
+        IDX_PICON: "Ścieżka pikon w dekoderze",
     }
 
     def __init__(self, video_backend, **kwargs):
@@ -1640,6 +2630,9 @@ class SettingsScreen(Screen):
         self.pad_r, self.pad_c = 1, 0
         self.picon_options = list(PICON_PRESETS)
         self.pig_mode_key = "follow"
+        self.remote_mode_key = "android"
+        self.custom_keymap_draft = dict(DEFAULT_CUSTOM_KEYMAP_ANDROID)
+        self.active_modal = None
         self.pad_rows_btns = []
         self.pad_rows_keys = []
 
@@ -1652,48 +2645,100 @@ class SettingsScreen(Screen):
         hdr = BoxLayout(size_hint_y=None, height=dp(24), spacing=dp(12))
         hdr.add_widget(make_label(f"Konfiguracja dekodera Enigma2  (v{APP_VERSION})", 17.5, C_CYAN, bold=True, size_hint_x=0.52))
         hdr.add_widget(make_label(
-            "Pilot: ▲▼ pole  •  OK/► edytuj  •  Wstecz = powrót",
+            "Pilot: Góra/Dół pole (przewija)  •  OK/Prawo edytuj  •  Wstecz = powrót",
             11.5, C_GRAY, halign="right", size_hint_x=0.48,
         ))
         card.add_widget(hdr)
 
         body = BoxLayout(orientation="horizontal", spacing=dp(12))
 
-        # === LEWA KOLUMNA: POLA KONFIGURACJI ===
+        # === LEWA KOLUMNA: PRZEWIJANA LISTA PÓL KONFIGURACJI ===
         left_col = BoxLayout(orientation="vertical", size_hint_x=0.51, spacing=dp(4))
 
-        self.ip_field = TVSettingField("Adres IP dekodera", "192.168.1.50", "[OK / ►] wpisz")
+        self.fields_scroll = ScrollView(
+            bar_width=dp(4),
+            bar_color=C_CYAN,
+            bar_inactive_color=(0.24, 0.34, 0.44, 0.55),
+            scroll_type=["bars", "content"],
+            do_scroll_x=False,
+        )
+        fields_box = BoxLayout(
+            orientation="vertical",
+            size_hint_y=None,
+            spacing=dp(5),
+            padding=(0, dp(2), dp(6), dp(4)),
+        )
+        fields_box.bind(minimum_height=fields_box.setter("height"))
+
+        field_h = dp(48)
+        self.ip_field = TVSettingField(
+            "Adres IP dekodera podstawowego", "192.168.1.50", "[OK / ►] wpisz",
+            size_hint_y=None, height=field_h,
+        )
+        self.backup_ip_field = TVSettingField(
+            "Adres IP dekodera zapasowego (opcjonalnie)", "", "[OK / ►] wpisz",
+            empty_placeholder="(brak — tylko dekoder podstawowy)",
+            size_hint_y=None, height=field_h,
+        )
         self.user_field = TVSettingField(
             "Użytkownik OpenWebif (opcjonalny)", "", "[OK / ►] wpisz",
             empty_placeholder="(brak — bez logowania)",
+            size_hint_y=None, height=field_h,
         )
         self.pass_field = TVSettingField(
             "Hasło OpenWebif (opcjonalne)", "", "[OK / ►] wpisz",
             empty_placeholder="(brak — bez hasła)", is_password=True,
+            size_hint_y=None, height=field_h,
         )
         self.stream_auth_field = TVCheckboxField(
-            "Autoryzacja strumienia (port 8001)", checked=False, size_hint_y=0.76
+            "Autoryzacja strumienia (port 8001)", checked=False,
+            size_hint_y=None, height=dp(38),
         )
-        self.web_field = TVSettingField("Port OpenWebif (domyślnie 80)", "80", "[OK / ►] wpisz")
-        self.stream_field = TVSettingField("Port strumienia (domyślnie 8001)", "8001", "[OK / ►] wpisz")
+        self.web_field = TVSettingField(
+            "Port OpenWebif (domyślnie 80)", "80", "[OK / ►] wpisz",
+            size_hint_y=None, height=field_h,
+        )
+        self.stream_field = TVSettingField(
+            "Port strumienia (domyślnie 8001)", "8001", "[OK / ►] wpisz",
+            size_hint_y=None, height=field_h,
+        )
+        self.e2i_proxy_field = TVSettingField(
+            "Port E2iStreamProxy (8099, 0=wył)", DEFAULT_E2I_PROXY_PORT, "[OK / ►] wpisz",
+            empty_placeholder="0 (wyłączone)",
+            size_hint_y=None, height=field_h,
+        )
         self.picon_field = TVSettingField(
-            "Ścieżka pikon w dekoderze", DEFAULT_PICON_DIR, "[OK/►] edytuj  [◄] preset"
+            "Ścieżka pikon w dekoderze", DEFAULT_PICON_DIR, "[OK/►] edytuj  [◄] preset",
+            size_hint_y=None, height=field_h,
         )
-        self.pig_field = TVSettingField("Tryb podglądu PIP na liście", pig_mode_label("follow"), "[OK / ◄ ►] zmień")
+        self.pig_field = TVSettingField(
+            "Tryb podglądu PIP na liście", pig_mode_label("follow"), "[OK / ◄ ►] zmień",
+            size_hint_y=None, height=field_h,
+        )
+        self.remote_field = TVSettingField(
+            "Tryb sterowania pilotem", remote_mode_label("android"), "[OK / ◄ ►] zmień",
+            size_hint_y=None, height=field_h,
+        )
 
         self.fields = [
             self.ip_field,
+            self.backup_ip_field,
             self.user_field,
             self.pass_field,
             self.stream_auth_field,
             self.web_field,
             self.stream_field,
+            self.e2i_proxy_field,
             self.picon_field,
             self.pig_field,
+            self.remote_field,
         ]
         for idx, fld in enumerate(self.fields):
             fld.bind(on_release=lambda *a, i=idx: self._on_field_click(i))
-            left_col.add_widget(fld)
+            fields_box.add_widget(fld)
+
+        self.fields_scroll.add_widget(fields_box)
+        left_col.add_widget(self.fields_scroll)
 
         self.status_lbl = make_label("", 12, C_ERROR, size_hint_y=None, height=dp(16))
         left_col.add_widget(self.status_lbl)
@@ -1716,7 +2761,7 @@ class SettingsScreen(Screen):
             bg=(0.022, 0.030, 0.048, 0.96), border=C_BORDER_SUB, radius=10,
             orientation="vertical", size_hint_x=0.49, padding=dp(9), spacing=dp(6),
         )
-        self.pad_title = make_label("Edycja: Adres IP dekodera", 13, C_MINT, halign="center",
+        self.pad_title = make_label("Edycja: Adres IP dekodera podstawowego", 13, C_MINT, halign="center",
                                     bold=True, size_hint_y=None, height=dp(20))
         right_col.add_widget(self.pad_title)
 
@@ -1790,14 +2835,21 @@ class SettingsScreen(Screen):
         return bool(app and app.config_data.get("ip"))
 
     def on_pre_enter(self):
+        app = App.get_running_app()
+        cfg = app.config_data
+        if is_e2iplayer_sref(getattr(self.video_backend, "current_sref", "")):
+            active_ip = getattr(app.main_screen, "_active_stream_ip", "") or cfg.get("ip", "")
+            notify_e2i_proxy_stop(cfg, ip_override=active_ip)
+        app.main_screen._cancel_failover_monitor()
         self.video_backend.hide()
-        cfg = App.get_running_app().config_data
         self.ip_field.text = cfg.get("ip", "192.168.1.50")
+        self.backup_ip_field.text = cfg.get("backup_ip", "")
         self.user_field.text = cfg.get("username", "")
         self.pass_field.text = cfg.get("password", "")
         self.stream_auth_field.checked = bool(cfg.get("stream_auth", False))
         self.web_field.text = str(cfg.get("web_port", "80"))
         self.stream_field.text = str(cfg.get("stream_port", "8001"))
+        self.e2i_proxy_field.text = str(cfg.get("e2i_proxy_port", DEFAULT_E2I_PROXY_PORT))
 
         pdir = cfg.get("picon_dir", DEFAULT_PICON_DIR) or DEFAULT_PICON_DIR
         self.picon_options = list(PICON_PRESETS)
@@ -1809,21 +2861,42 @@ class SettingsScreen(Screen):
         self.pig_mode_key = pm if any(k == pm for k, _ in PIG_MODES) else "follow"
         self.pig_field.text = pig_mode_label(self.pig_mode_key)
 
+        rm = cfg.get("remote_mode", "android")
+        self.remote_mode_key = rm if any(k == rm for k, _ in REMOTE_MODES) else "android"
+        self.custom_keymap_draft = normalize_custom_keymap(cfg.get("custom_keymap"))
+        self._update_remote_field_ui()
+
         self.status_lbl.text = ""
         self.zone = "fields"
-        self.field_idx = 0
-        self.active_edit_idx = 0
+        self.field_idx = self.IDX_IP
+        self.active_edit_idx = self.IDX_IP
         self._rebuild_keyboard("123")
         self.pad_r, self.pad_c = 1, 0
         has_ip = self._has_saved_ip()
         self.cancel_btn.disabled = not has_ip
         self.cancel_btn.opacity = 1.0 if has_ip else 0.35
         self._refresh_focus()
+        Clock.schedule_once(lambda dt: setattr(self.fields_scroll, "scroll_y", 1.0), 0.05)
+
+    def _update_remote_field_ui(self):
+        self.remote_field.text = remote_mode_label(self.remote_mode_key)
+        if self.remote_mode_key == "custom":
+            self.remote_field.hint_lbl.text = "[OK] edytuj  [◄ ►] zmień"
+        else:
+            self.remote_field.hint_lbl.text = "[OK / ◄ ►] zmień"
 
     def _select_default_kb_for_field(self, idx):
         desired = "123" if idx in self.NUMERIC_FIELDS else "abc"
         if self.kb_mode != desired:
             self._rebuild_keyboard(desired)
+
+    def _scroll_focused_field_into_view(self):
+        if 0 <= self.field_idx < len(self.fields):
+            target = self.fields[self.field_idx]
+            try:
+                self.fields_scroll.scroll_to(target, padding=dp(14), animate=False)
+            except Exception:
+                pass
 
     def _refresh_focus(self):
         fname = self.FIELD_NAMES.get(self.active_edit_idx, "Pole tekstowe")
@@ -1836,15 +2909,15 @@ class SettingsScreen(Screen):
             )
 
         for idx, btn, base_bg, foc_bg, acc in (
-            (8, self.save_btn, (0.08, 0.26, 0.20, 0.95), (0.14, 0.44, 0.34, 0.98), C_MINT),
-            (9, self.cancel_btn, (0.08, 0.09, 0.12, 0.95), C_FOCUS_BG, C_MUTED),
-            (10, self.exit_btn, (0.25, 0.07, 0.08, 0.95), (0.56, 0.13, 0.15, 0.98), C_ERROR),
+            (self.IDX_BTN_SAVE, self.save_btn, (0.08, 0.26, 0.20, 0.95), (0.14, 0.44, 0.34, 0.98), C_MINT),
+            (self.IDX_BTN_CANCEL, self.cancel_btn, (0.08, 0.09, 0.12, 0.95), C_FOCUS_BG, C_MUTED),
+            (self.IDX_BTN_EXIT, self.exit_btn, (0.25, 0.07, 0.08, 0.95), (0.56, 0.13, 0.15, 0.98), C_ERROR),
         ):
             focused = (self.zone == "fields" and self.field_idx == idx)
             btn._bg_col.rgba = foc_bg if focused else base_bg
-            btn._bd_col.rgba = (acc if idx == 10 else C_CYAN) if focused else (0.30, 0.35, 0.42, 0.7)
+            btn._bd_col.rgba = (acc if idx == self.IDX_BTN_EXIT else C_CYAN) if focused else (0.30, 0.35, 0.42, 0.7)
             btn._bd_line.width = 2.0 if focused else 1.0
-            btn._acc_col.rgba = (acc if idx == 10 else C_CYAN) if focused else acc
+            btn._acc_col.rgba = (acc if idx == self.IDX_BTN_EXIT else C_CYAN) if focused else acc
             btn.lbl.color = (1, 1, 1, 1) if focused else C_WHITE
 
         for r, row_btns in enumerate(self.pad_rows_btns):
@@ -1876,6 +2949,9 @@ class SettingsScreen(Screen):
                     btn._bd_line.width = 1.0
                     btn.lbl.color = C_WHITE
 
+        if self.zone == "fields":
+            self._scroll_focused_field_into_view()
+
     def _cycle_picon(self, step):
         cur = self.picon_field.text
         idx = self.picon_options.index(cur) if cur in self.picon_options else 0
@@ -1886,6 +2962,30 @@ class SettingsScreen(Screen):
         idx = keys.index(self.pig_mode_key) if self.pig_mode_key in keys else 0
         self.pig_mode_key = keys[(idx + step) % len(keys)]
         self.pig_field.text = pig_mode_label(self.pig_mode_key)
+
+    def _cycle_remote_mode(self, step, open_custom_if_selected=False):
+        keys = [k for k, _ in REMOTE_MODES]
+        idx = keys.index(self.remote_mode_key) if self.remote_mode_key in keys else 0
+        self.remote_mode_key = keys[(idx + step) % len(keys)]
+        self._update_remote_field_ui()
+        if open_custom_if_selected and self.remote_mode_key == "custom":
+            self._open_custom_remote_modal()
+
+    def _open_custom_remote_modal(self):
+        if self.active_modal:
+            return
+        self.remote_mode_key = "custom"
+        self._update_remote_field_ui()
+
+        def _on_saved(new_map):
+            self.custom_keymap_draft = normalize_custom_keymap(new_map)
+            self.status_lbl.color = C_MINT
+            self.status_lbl.text = "Zapisano własne klawisze pilota (naciśnij ZAPISZ, aby zastosować)."
+
+        modal = CustomRemoteModal(self.custom_keymap_draft, on_save=_on_saved)
+        modal.bind(on_dismiss=lambda *a: setattr(self, "active_modal", None))
+        self.active_modal = modal
+        modal.open()
 
     def _apply_char(self, ch):
         if self.active_edit_idx not in self.EDITABLE_FIELDS:
@@ -1911,15 +3011,16 @@ class SettingsScreen(Screen):
             return
         else:
             out_ch = " " if ch == "SPC" else ch
-            if self.active_edit_idx == 0:
+            if self.active_edit_idx in self.IP_FIELDS:
                 if (out_ch.isdigit() or out_ch == ".") and len(cur) < 15:
                     fld.text = cur + out_ch
-            elif self.active_edit_idx in (4, 5):
+            elif self.active_edit_idx in self.PORT_FIELDS:
                 if out_ch.isdigit() and len(cur) < 5:
                     fld.text = cur + out_ch
             else:
                 if len(cur) < 96:
                     fld.text = cur + out_ch
+        self.status_lbl.color = C_ERROR
         self.status_lbl.text = ""
         self._refresh_focus()
 
@@ -1935,12 +3036,18 @@ class SettingsScreen(Screen):
         if idx in self.EDITABLE_FIELDS:
             self._enter_pad_for_field(idx)
             return
-        if idx == 3:
+        if idx == self.IDX_STREAM_AUTH:
             self.stream_auth_field.toggle()
             self.zone = "fields"
-        elif idx == 7:
+        elif idx == self.IDX_PIG_MODE:
             self._cycle_pig_mode(1)
             self.zone = "fields"
+        elif idx == self.IDX_REMOTE_MODE:
+            self.zone = "fields"
+            if self.remote_mode_key == "custom":
+                self._open_custom_remote_modal()
+            else:
+                self._cycle_remote_mode(1, open_custom_if_selected=True)
         self._refresh_focus()
 
     def _on_pad_click(self, r, c):
@@ -1950,6 +3057,11 @@ class SettingsScreen(Screen):
             self._apply_char(self.pad_rows_keys[r][c])
 
     def handle_dpad(self, key, codepoint=""):
+        if self.active_modal:
+            if hasattr(self.active_modal, "handle_key"):
+                return self.active_modal.handle_key(key)
+            return True
+
         if key == 8:
             if self.field_idx in self.EDITABLE_FIELDS:
                 self.active_edit_idx = self.field_idx
@@ -1962,7 +3074,11 @@ class SettingsScreen(Screen):
                 self._apply_char(codepoint)
                 return True
 
-        valid = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10] if self._has_saved_ip() else [0, 1, 2, 3, 4, 5, 6, 7, 8, 10]
+        valid = list(range(len(self.fields))) + (
+            [self.IDX_BTN_SAVE, self.IDX_BTN_CANCEL, self.IDX_BTN_EXIT]
+            if self._has_saved_ip()
+            else [self.IDX_BTN_SAVE, self.IDX_BTN_EXIT]
+        )
 
         if self.zone == "fields":
             if key == 273:
@@ -1985,49 +3101,60 @@ class SettingsScreen(Screen):
                 if self.field_idx in self.EDITABLE_FIELDS:
                     self._enter_pad_for_field(self.field_idx)
                     return True
-                if self.field_idx == 3:
+                if self.field_idx == self.IDX_STREAM_AUTH:
                     self.stream_auth_field.toggle()
-                elif self.field_idx == 7:
+                elif self.field_idx == self.IDX_PIG_MODE:
                     self._cycle_pig_mode(1)
-                elif self.field_idx == 8:
-                    self.field_idx = 9 if self._has_saved_ip() else 10
-                elif self.field_idx == 9:
-                    self.field_idx = 10
+                elif self.field_idx == self.IDX_REMOTE_MODE:
+                    self._cycle_remote_mode(1, open_custom_if_selected=False)
+                elif self.field_idx == self.IDX_BTN_SAVE:
+                    self.field_idx = self.IDX_BTN_CANCEL if self._has_saved_ip() else self.IDX_BTN_EXIT
+                elif self.field_idx == self.IDX_BTN_CANCEL:
+                    self.field_idx = self.IDX_BTN_EXIT
                 self._refresh_focus()
                 return True
             if key == 276:
-                if self.field_idx == 3:
+                if self.field_idx == self.IDX_STREAM_AUTH:
                     self.stream_auth_field.toggle()
-                elif self.field_idx == 6:
+                elif self.field_idx == self.IDX_PICON:
                     self._cycle_picon(1)
-                elif self.field_idx == 7:
+                elif self.field_idx == self.IDX_PIG_MODE:
                     self._cycle_pig_mode(-1)
-                elif self.field_idx == 10:
-                    self.field_idx = 9 if self._has_saved_ip() else 8
-                elif self.field_idx == 9:
-                    self.field_idx = 8
+                elif self.field_idx == self.IDX_REMOTE_MODE:
+                    self._cycle_remote_mode(-1, open_custom_if_selected=False)
+                elif self.field_idx == self.IDX_BTN_EXIT:
+                    self.field_idx = self.IDX_BTN_CANCEL if self._has_saved_ip() else self.IDX_BTN_SAVE
+                elif self.field_idx == self.IDX_BTN_CANCEL:
+                    self.field_idx = self.IDX_BTN_SAVE
                 self._refresh_focus()
                 return True
             if key in (13, 271, 23):
                 if self.field_idx in self.EDITABLE_FIELDS:
                     self._enter_pad_for_field(self.field_idx)
-                elif self.field_idx == 3:
+                elif self.field_idx == self.IDX_STREAM_AUTH:
                     self.stream_auth_field.toggle()
                     self._refresh_focus()
-                elif self.field_idx == 7:
+                elif self.field_idx == self.IDX_PIG_MODE:
                     self._cycle_pig_mode(1)
                     self._refresh_focus()
-                elif self.field_idx == 8:
+                elif self.field_idx == self.IDX_REMOTE_MODE:
+                    if self.remote_mode_key == "custom":
+                        self._open_custom_remote_modal()
+                    else:
+                        self._cycle_remote_mode(1, open_custom_if_selected=True)
+                    self._refresh_focus()
+                elif self.field_idx == self.IDX_BTN_SAVE:
                     self.save_and_connect()
-                elif self.field_idx == 9:
+                elif self.field_idx == self.IDX_BTN_CANCEL:
                     self.go_back()
-                elif self.field_idx == 10:
+                elif self.field_idx == self.IDX_BTN_EXIT:
                     App.get_running_app().exit_application()
                 return True
             if key == 27:
                 if self._has_saved_ip():
                     self.go_back()
                     return True
+                self.status_lbl.color = C_ERROR
                 self.status_lbl.text = "Naciśnij WSTECZ ponownie, aby zamknąć aplikację"
                 return True
 
@@ -2078,35 +3205,103 @@ class SettingsScreen(Screen):
 
     def save_and_connect(self, *args):
         ip = self.ip_field.text.strip()
-        parts = ip.split(".")
-        if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
-            self.status_lbl.text = "Podaj poprawny adres IPv4 (np. 192.168.1.50)"
+        if not is_valid_ipv4(ip):
+            self.status_lbl.color = C_ERROR
+            self.status_lbl.text = "Podaj poprawny adres IPv4 dekodera podstawowego (np. 192.168.1.50)"
+            return
+        backup_ip = self.backup_ip_field.text.strip()
+        if backup_ip:
+            if not is_valid_ipv4(backup_ip):
+                self.status_lbl.color = C_ERROR
+                self.status_lbl.text = "Podaj poprawny adres IPv4 dekodera zapasowego lub zostaw puste"
+                return
+            if backup_ip == ip:
+                self.status_lbl.color = C_ERROR
+                self.status_lbl.text = "Adres IP dekodera zapasowego musi różnić się od podstawowego"
+                return
+        e2i_port_raw = self.e2i_proxy_field.text.strip()
+        if not e2i_port_raw or e2i_port_raw == "0":
+            e2i_port = "0"
+        elif e2i_port_raw.isdigit() and 1 <= int(e2i_port_raw) <= 65535:
+            e2i_port = e2i_port_raw
+        else:
+            self.status_lbl.color = C_ERROR
+            self.status_lbl.text = "Port E2iStreamProxy musi wynosić 1-65535 (lub 0 aby wyłączyć)"
             return
         app = App.get_running_app()
         app.save_config(
             ip=ip,
+            backup_ip=backup_ip,
             web_port=self.web_field.text.strip() or "80",
             stream_port=self.stream_field.text.strip() or "8001",
             picon_dir=self.picon_field.text.strip() or DEFAULT_PICON_DIR,
             pig_mode=self.pig_mode_key,
+            remote_mode=self.remote_mode_key,
+            custom_keymap=self.custom_keymap_draft,
             username=self.user_field.text.strip(),
             password=self.pass_field.text,
             stream_auth=self.stream_auth_field.checked,
+            e2i_proxy_port=e2i_port,
         )
+        app.apply_remote_settings()
         app.root.current = "main"
         app.main_screen.load_bouquets()
 
 
 class FullscreenPlayerScreen(Screen):
-    """Ekran pełnoekranowy dla Android TV (obsługuje pilota, Infobar oraz wybór Audio/Napisów)."""
+    """Ekran pełnoekranowy dla Android TV (obsługuje tryby pilota Android / Enigma2 / Własne)."""
     def __init__(self, video_backend, **kwargs):
         super().__init__(**kwargs)
         self.video_backend = video_backend
 
-    def handle_dpad(self, key):
+    def _exit_to_main(self, app):
+        app._awaiting_e2i_audio_pick = False
+        app.main_screen._e2i_var_req += 1
+        app.root.current = "main"
+
+    def _open_audio(self, app):
+        if app.main_screen.try_open_e2i_audio_selector(return_to_player=True):
+            return
+        self.video_backend.open_track_menu(0)
+
+    def _exec_player_action(self, app, action):
+        if action == "player_infobar":
+            self.video_backend.toggle_infobar()
+            return True
+        if action == "player_list":
+            self._exit_to_main(app)
+            return True
+        if action == "player_zap_prev":
+            app.main_screen.zap_in_fullscreen(-1)
+            return True
+        if action == "player_zap_next":
+            app.main_screen.zap_in_fullscreen(1)
+            return True
+        if action == "player_audio":
+            self._open_audio(app)
+            return True
+        if action == "player_subs":
+            self.video_backend.open_track_menu(1)
+            return True
+        if action == "player_epg":
+            app.open_epg_from("player")
+            return True
+        if action == "player_menu":
+            app._awaiting_e2i_audio_pick = False
+            app.main_screen._e2i_var_req += 1
+            app.root.current = "settings"
+            return True
+        if action == "player_bouquets":
+            self._exit_to_main(app)
+            Clock.schedule_once(lambda dt: app.main_screen.open_bouquet_modal(), 0.08)
+            return True
+        return False
+
+    def handle_dpad(self, key, key_id=None):
         app = App.get_running_app()
         if self.video_backend.is_track_menu_open():
             if key == 27:
+                app._awaiting_e2i_audio_pick = False
                 self.video_backend.close_track_menu()
                 return True
             if key == 273:
@@ -2123,8 +3318,68 @@ class FullscreenPlayerScreen(Screen):
                 return True
             return True
 
+        if key in (ord("+"), ord("=")):
+            v = self.video_backend.change_volume(0.1)
+            self.video_backend.show_toast("Głośność", f"{v}%", 2.0)
+            return True
+        if key == ord("-"):
+            v = self.video_backend.change_volume(-0.1)
+            self.video_backend.show_toast("Głośność", f"{v}%", 2.0)
+            return True
+
+        rmode = app.get_remote_mode()
+        kid = key_id or kivy_key_to_key_id(key)
+
+        if rmode == "custom":
+            act = app.resolve_custom_action("player", kid)
+            if act and self._exec_player_action(app, act):
+                return True
+            # Bezpieczny powrót do listy na WSTECZ, jeśli nie został inaczej przypisany
+            if key == 27 or kid == "BACK":
+                self._exit_to_main(app)
+                return True
+            return False
+
+        if rmode == "enigma2":
+            if key in (27, 273, 274, ord("r")):
+                self._exit_to_main(app)
+                return True
+            if key in (13, 271, 23):
+                self.video_backend.toggle_infobar()
+                return True
+            if key in (276, 281):
+                app.main_screen.zap_in_fullscreen(-1)
+                return True
+            if key in (275, 280):
+                app.main_screen.zap_in_fullscreen(1)
+                return True
+            if key in (ord("a"), ord("y")):
+                self._open_audio(app)
+                return True
+            if key == ord("s"):
+                self.video_backend.open_track_menu(1)
+                return True
+            if key in (ord("e"), ord("i")):
+                app.open_epg_from("player")
+                return True
+            if key == ord("m"):
+                app._awaiting_e2i_audio_pick = False
+                app.main_screen._e2i_var_req += 1
+                app.root.current = "settings"
+                return True
+            if key == ord("g"):
+                self._exit_to_main(app)
+                Clock.schedule_once(lambda dt: app.main_screen.open_bouquet_modal(), 0.08)
+                return True
+            if key == ord("b"):
+                self._exit_to_main(app)
+                Clock.schedule_once(lambda dt: app.main_screen.load_bouquets(), 0.08)
+                return True
+            return False
+
+        # Domyślny tryb "android" (identyczny z v1.6)
         if key == 27:
-            app.root.current = "main"
+            self._exit_to_main(app)
             return True
         if key in (13, 271, 23):
             self.video_backend.toggle_infobar()
@@ -2136,21 +3391,13 @@ class FullscreenPlayerScreen(Screen):
             app.main_screen.zap_in_fullscreen(1)
             return True
         if key in (276, ord("a"), ord("m")):
-            self.video_backend.open_track_menu(0)
+            self._open_audio(app)
             return True
         if key == ord("s"):
             self.video_backend.open_track_menu(1)
             return True
         if key in (ord("e"), 275):
             app.open_epg_from("player")
-            return True
-        if key in (ord("+"), ord("=")):
-            v = self.video_backend.change_volume(0.1)
-            self.video_backend.show_toast("Głośność", f"{v}%", 2.0)
-            return True
-        if key == ord("-"):
-            v = self.video_backend.change_volume(-0.1)
-            self.video_backend.show_toast("Głośność", f"{v}%", 2.0)
             return True
         return False
 
@@ -2464,6 +3711,13 @@ class EPGScreen(Screen):
                 req = make_webif_request(url, cfg=cfg)
                 with urllib.request.urlopen(req, timeout=8) as r:
                     evs = clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", []))
+                if not evs and is_e2iplayer_sref(sref):
+                    alt = short_sref(sref)
+                    if alt and alt != sref:
+                        alt_url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(alt, safe='')}"
+                        req2 = make_webif_request(alt_url, cfg=cfg)
+                        with urllib.request.urlopen(req2, timeout=6) as r2:
+                            evs = clean_epg_events(json.loads(r2.read().decode("utf-8")).get("events", []))
             except urllib.error.HTTPError as e:
                 err_msg = "Błąd 401: sprawdź login i hasło OpenWebif w Ustawieniach." if e.code == 401 else f"Błąd HTTP {e.code} podczas pobierania EPG."
             except Exception as e:
@@ -2545,7 +3799,11 @@ class EPGScreen(Screen):
                     with urllib.request.urlopen(req, timeout=8) as r:
                         for ev in clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", [])):
                             if ev.get("sref"):
-                                target[ev["sref"]] = ev
+                                ev_ref = ev["sref"]
+                                target[ev_ref] = ev
+                                sh = short_sref(ev_ref)
+                                if sh and sh != ev_ref:
+                                    target.setdefault(sh, ev)
                 except urllib.error.HTTPError as e:
                     if e.code == 401:
                         err_msg = "Błąd 401: sprawdź login i hasło OpenWebif w Ustawieniach."
@@ -2571,7 +3829,12 @@ class EPGScreen(Screen):
         start_sel = 0
         for idx, ch in enumerate(self.bouquet_items):
             sref = ch["sref"]
-            self.multi_rows.append({"ch": ch, "now": now_map.get(sref), "next": next_map.get(sref)})
+            sh = short_sref(sref)
+            self.multi_rows.append({
+                "ch": ch,
+                "now": now_map.get(sref) or now_map.get(sh),
+                "next": next_map.get(sref) or next_map.get(sh),
+            })
             if sref == cur_sref:
                 start_sel = idx
 
@@ -2865,6 +4128,22 @@ class EnigmaChannelSelectionScreen(Screen):
         self.items, self.selected_idx, self.top_idx = [], 0, 0
         self.epg_now, self.epg_next, self.epg_service_cache = {}, {}, {}
         self._epg_b_req = self._epg_s_req = 0
+        self._e2i_probe_req = 0
+        self._e2i_probe_ts = 0.0
+        self.e2i_proxy_active = False
+        self.e2i_proxy_active_backup = False
+        self._e2i_variants_cache = {}
+        self._e2i_selected_idx = {}
+        self._e2i_var_req = 0
+        self._play_attempt_id = 0
+        self._active_stream_ip = ""
+        self._webif_active_ip = ""
+        self._using_backup_decoder = False
+        self._failover_tried = False
+        self._failover_ctx = None
+        self._failover_ev = None
+        self._backup_err_ev = None
+        self._backup_err_notified = False
         self._detail_ev = None
         self._pig_auto_ev = None
         self._toast_until = 0.0
@@ -2987,15 +4266,23 @@ class EnigmaChannelSelectionScreen(Screen):
         right_col.add_widget(self.list_wrap)
 
         bbar = BoxLayout(size_hint_y=None, height=dp(34), spacing=dp(12), padding=(dp(8), 0))
-        for txt, col, fn in (
-            ("◄ Bukiety/Menu", (0.88, 0.24, 0.24, 1), self.open_bouquet_modal),
-            ("Odśwież", (0.24, 0.78, 0.40, 1), self.load_bouquets),
-            ("Podgląd PIP", (0.92, 0.78, 0.22, 1), self.preview_selected_in_pig),
-            ("Ustawienia IP", C_CYAN, self.open_settings),
-        ):
+        self._bbar_btns = []
+        self._bbar_actions = [
+            self.open_bouquet_modal,
+            self.load_bouquets,
+            self.preview_selected_in_pig,
+            self.open_settings,
+        ]
+        for idx, (txt, col) in enumerate((
+            ("◄ Bukiety/Menu", (0.88, 0.24, 0.24, 1)),
+            ("Odśwież", (0.24, 0.78, 0.40, 1)),
+            ("Podgląd PIP", (0.92, 0.78, 0.22, 1)),
+            ("Ustawienia IP", C_CYAN),
+        )):
             btn = PillButton(text=txt, accent=col, underline=True, font_size=13)
-            btn.bind(on_release=lambda *a, f=fn: f())
+            btn.bind(on_release=lambda *a, i=idx: self._on_bbar_click(i))
             bbar.add_widget(btn)
+            self._bbar_btns.append(btn)
         right_col.add_widget(bbar)
 
         root.add_widget(right_col)
@@ -3028,8 +4315,120 @@ class EnigmaChannelSelectionScreen(Screen):
             self._toast_until = 0.0
             self.subinfo_lbl.color = C_MUTED
 
+    def _on_bbar_click(self, idx):
+        if 0 <= idx < len(self._bbar_actions) and self._bbar_actions[idx]:
+            self._bbar_actions[idx]()
+
+    def _focus_channel_list_action(self):
+        if self.active_modal:
+            try:
+                self.active_modal.dismiss()
+            except Exception:
+                pass
+            self.active_modal = None
+        self._exit_lbtn_focus()
+        if self.playing_item:
+            target_sref = self.playing_item.get("sref", "")
+            for i, it in enumerate(self.items):
+                if it.get("type") == "channel" and it.get("sref") == target_sref:
+                    self.selected_idx = i
+                    self._ensure_visible()
+                    self._render_viewport()
+                    self._on_selection_changed()
+                    break
+        self._toast_until = time.monotonic() + 2.0
+        self.subinfo_lbl.color = C_CYAN
+        bname = self.bouquet_lbl.text or "Lista kanałów"
+        self.subinfo_lbl.text = f"Lista kanałów: {bname}"
+        Clock.schedule_once(self._restore_subinfo_color, 2.05)
+
+    def _cycle_bouquet(self, delta):
+        if len(self.bouquets) > 1:
+            self.select_bouquet((self.bouquet_idx + delta) % len(self.bouquets))
+        else:
+            self.move_selection(-self.VISIBLE_ROWS if delta < 0 else self.VISIBLE_ROWS)
+
+    def _exec_list_action(self, action):
+        if action == "list_channels":
+            self._focus_channel_list_action()
+            return True
+        if action == "list_bouquets":
+            self.open_bouquet_modal()
+            return True
+        if action == "list_settings":
+            self.open_settings()
+            return True
+        if action == "list_refresh":
+            self.load_bouquets()
+            return True
+        if action == "list_pip":
+            self.preview_selected_in_pig()
+            return True
+        if action == "list_epg":
+            App.get_running_app().open_epg_from("main")
+            return True
+        if action == "list_audio":
+            self.open_e2i_audio_selector_for_selected()
+            return True
+        if action == "list_page_up":
+            self.move_selection(-self.VISIBLE_ROWS)
+            return True
+        if action == "list_page_down":
+            self.move_selection(self.VISIBLE_ROWS)
+            return True
+        if action == "list_bouquet_next":
+            self._cycle_bouquet(1)
+            return True
+        if action == "list_bouquet_prev":
+            self._cycle_bouquet(-1)
+            return True
+        return False
+
+    def _list_hint_tail(self):
+        app = App.get_running_app()
+        rmode = app.get_remote_mode() if app else "android"
+        if rmode == "enigma2":
+            return "[OK] Pełny ekran  |  [ZIEL] Bukiety  |  [ŻÓŁT] Menu  |  [NIEB] Odśwież"
+        if rmode == "custom" and app:
+            km = app.get_custom_keymap()
+            k_b = key_id_to_label(km.get("list_bouquets", ""))
+            k_m = key_id_to_label(km.get("list_settings", ""))
+            return f"[OK] Pełny ekran  |  [{k_b}] Bukiety  |  [{k_m}] Menu"
+        return "[OK] Pełny ekran  |  [◄] Menu  |  [2×◄] Pasek"
+
+    def refresh_remote_ui(self):
+        app = App.get_running_app()
+        rmode = app.get_remote_mode() if app else "android"
+        if rmode == "enigma2":
+            specs = [
+                ("Lista kanałów", self._focus_channel_list_action),
+                ("Bukiety/Ustawienia", self.open_bouquet_modal),
+                ("Menu", self.open_settings),
+                ("Odśwież listę", self.load_bouquets),
+            ]
+        elif rmode == "custom" and app:
+            specs = []
+            for color_kid in ("RED", "GREEN", "YELLOW", "BLUE"):
+                act = app.resolve_custom_action("list", color_kid)
+                if act and act in CUSTOM_ACTION_META:
+                    specs.append((CUSTOM_ACTION_META[act]["short"], lambda a=act: self._exec_list_action(a)))
+                else:
+                    specs.append(("---", None))
+        else:
+            specs = [
+                ("◄ Bukiety/Menu", self.open_bouquet_modal),
+                ("Odśwież", self.load_bouquets),
+                ("Podgląd PIP", self.preview_selected_in_pig),
+                ("Ustawienia IP", self.open_settings),
+            ]
+        for i, (txt, fn) in enumerate(specs):
+            if i < len(self._bbar_btns):
+                self._bbar_btns[i].lbl.text = txt
+                self._bbar_actions[i] = fn
+
     def on_enter(self):
         self._exit_lbtn_focus()
+        self.refresh_remote_ui()
         Clock.schedule_once(self._on_enter_resume_pig, 0.06)
 
     def on_leave(self):
@@ -3117,24 +4516,40 @@ class EnigmaChannelSelectionScreen(Screen):
         self.picon_manager.configure(ip, wp, pdir, username=user, password=pwd)
         self.sel_ch_lbl.text = f"Łączenie z {ip}..."
         self.subinfo_lbl.text = f"OpenWebif: {ip}:{wp}  |  Pikony: {pdir}"
+        self.probe_e2i_proxy(force=True)
         threading.Thread(target=self._fetch_bouquets_worker, args=(cfg,), daemon=True).start()
 
     def _fetch_bouquets_worker(self, cfg):
-        ip = cfg.get("ip", "")
+        ip = (cfg.get("ip") or "").strip()
+        backup_ip = (cfg.get("backup_ip") or "").strip()
         wp = cfg.get("web_port", "80")
-        try:
-            req = make_webif_request(f"http://{ip}:{wp}/api/getallservices", cfg=cfg)
+
+        def _try_ip(target_ip):
+            req = make_webif_request(f"http://{target_ip}:{wp}/api/getallservices", cfg=cfg)
             with urllib.request.urlopen(req, timeout=8) as r:
-                services = clean_services(json.loads(r.read().decode("utf-8")).get("services", []))
-            Clock.schedule_once(lambda dt: self._on_bouquets_loaded(services, ip))
+                return clean_services(json.loads(r.read().decode("utf-8")).get("services", []))
+
+        try:
+            services = _try_ip(ip)
+            Clock.schedule_once(lambda dt: self._on_bouquets_loaded(services, ip, used_backup=False))
+            return
         except urllib.error.HTTPError as e:
             if e.code == 401:
-                msg = f"Błąd 401 ({ip}): OpenWebif wymaga loginu i hasła — wpisz je w Ustawieniach (MENU)."
+                first_err = f"Błąd 401 ({ip}): OpenWebif wymaga loginu i hasła — wpisz je w Ustawieniach (MENU)."
             else:
-                msg = f"Błąd HTTP {e.code} połączenia z {ip}"
-            Clock.schedule_once(lambda dt, m=msg: self._on_bouquets_error(m))
+                first_err = f"Błąd HTTP {e.code} połączenia z {ip}"
         except Exception as e:
-            Clock.schedule_once(lambda dt, m=f"Błąd połączenia z {ip}: {e}": self._on_bouquets_error(m))
+            first_err = f"Błąd połączenia z {ip}: {e}"
+
+        if backup_ip and backup_ip != ip:
+            try:
+                services = _try_ip(backup_ip)
+                Clock.schedule_once(lambda dt: self._on_bouquets_loaded(services, backup_ip, used_backup=True))
+                return
+            except Exception as e2:
+                first_err = f"{first_err}\nDekoder zapasowy ({backup_ip}): {e2}"
+
+        Clock.schedule_once(lambda dt, m=first_err: self._on_bouquets_error(m))
 
     def _on_bouquets_error(self, msg):
         self.sel_ch_lbl.text = "Brak połączenia"
@@ -3143,9 +4558,16 @@ class EnigmaChannelSelectionScreen(Screen):
         self.items = []
         self._render_viewport()
 
-    def _on_bouquets_loaded(self, services, ip):
+    def _on_bouquets_loaded(self, services, ip, used_backup=False):
+        self._webif_active_ip = ip
+        if used_backup:
+            cfg = App.get_running_app().config_data
+            self.picon_manager.configure(
+                ip, cfg.get("web_port", "80"), cfg.get("picon_dir", DEFAULT_PICON_DIR),
+                username=cfg.get("username", ""), password=cfg.get("password", ""),
+            )
         self.bouquets = services
-        self.badge_lbl.text = f"TV HD\n{ip}"
+        self.badge_lbl.text = f"TV HD{' [Z]' if used_backup else ''}\n{ip}"
         if self.bouquets:
             cfg = App.get_running_app().config_data
             saved_bidx = cfg.get("last_bouquet_idx", self.bouquet_idx)
@@ -3156,6 +4578,12 @@ class EnigmaChannelSelectionScreen(Screen):
             if not (0 <= saved_bidx < len(self.bouquets)):
                 saved_bidx = 0
             self.select_bouquet(saved_bidx, is_initial=True)
+            if used_backup:
+                primary_ip = (cfg.get("ip") or "").strip()
+                self._toast_until = time.monotonic() + 6.0
+                self.subinfo_lbl.color = (1.0, 0.80, 0.30, 1)
+                self.subinfo_lbl.text = f"Dekoder podstawowy ({primary_ip}) niedostępny — pobrano listę z zapasowego ({ip})"
+                Clock.schedule_once(self._restore_subinfo_color, 6.05)
         else:
             self.sel_ch_lbl.text = "Brak bukietów"
 
@@ -3187,12 +4615,14 @@ class EnigmaChannelSelectionScreen(Screen):
             if sref.startswith("1:64:"):
                 built.append({"type": "marker", "name": sname})
             else:
+                is_e2i = is_e2iplayer_sref(sref)
                 built.append({
                     "type": "channel",
                     "num": ch_num,
                     "name": sname,
                     "sref": sref,
-                    "encrypted": is_e2iplayer_sref(sref),
+                    "e2i": is_e2i,
+                    "encrypted": is_e2i,
                 })
                 ch_num += 1
 
@@ -3208,15 +4638,17 @@ class EnigmaChannelSelectionScreen(Screen):
                         break
 
         mode_tag = "PIP: Enigma2" if self._get_pig_mode() == "enigma2" else "PIP: Auto"
-        self.subinfo_lbl.text = f"{b_name}  •  {mode_tag}  |  [OK] Pełny ekran  |  [◄] Menu  |  [2×◄] EPG/MENU/EXIT"
+        self.subinfo_lbl.text = f"{b_name}  •  {mode_tag}  |  {self._list_hint_tail()}"
         self._ensure_visible()
         self._render_viewport()
         self._on_selection_changed()
         self._fetch_epg_bouquet(b_ref)
+        if any(it.get("e2i") for it in built):
+            self.probe_e2i_proxy(force=True)
 
         if platform == "android" and self._get_pig_mode() == "enigma2" and not self.video_backend.is_playing:
             target = self._find_last_or_first_channel()
-            if target:
+            if target and not self._is_e2i_blocked(target):
                 Clock.schedule_once(lambda dt, t=target: self._start_pig_for_item(t, save_last=False), 0.35)
 
     def _find_next_channel(self, start, direction=1):
@@ -3240,6 +4672,101 @@ class EnigmaChannelSelectionScreen(Screen):
             self.top_idx = self.selected_idx - self.VISIBLE_ROWS + 1
         self.top_idx = max(0, min(self.top_idx, max(0, len(self.items) - self.VISIBLE_ROWS)))
 
+    def _e2i_proxy_port(self):
+        app = App.get_running_app()
+        return get_e2i_proxy_port(app.config_data if app else {})
+
+    def _is_e2i_proxy_ready(self):
+        return bool(self._e2i_proxy_port()) and (bool(self.e2i_proxy_active) or bool(self.e2i_proxy_active_backup))
+
+    def _is_e2i_blocked(self, item):
+        if not item:
+            return False
+        is_e2i = bool(item.get("e2i", item.get("encrypted", False)))
+        return is_e2i and not self._is_e2i_proxy_ready()
+
+    def _key_mode_for_item(self, item):
+        if not item or not bool(item.get("e2i", item.get("encrypted", False))):
+            return "none"
+        return "green" if self._is_e2i_proxy_ready() else "red"
+
+    def probe_e2i_proxy(self, force=False):
+        app = App.get_running_app()
+        cfg = dict(app.config_data) if app else {}
+        ip = (cfg.get("ip") or "").strip()
+        backup_ip = (cfg.get("backup_ip") or "").strip()
+        port = get_e2i_proxy_port(cfg)
+        if not ip or not port:
+            self._e2i_probe_req += 1
+            self._e2i_probe_ts = time.monotonic()
+            if self.e2i_proxy_active or self.e2i_proxy_active_backup:
+                self.e2i_proxy_active = False
+                self.e2i_proxy_active_backup = False
+                self._render_viewport()
+                self._on_selection_changed()
+            return
+        if not force and (time.monotonic() - self._e2i_probe_ts) < 4.0:
+            return
+        self._e2i_probe_req += 1
+        rid = self._e2i_probe_req
+
+        def _worker():
+            active_primary = probe_e2i_proxy_status(cfg, timeout=2.5, ip_override=ip)
+            active_backup = (
+                probe_e2i_proxy_status(cfg, timeout=2.5, ip_override=backup_ip)
+                if (backup_ip and backup_ip != ip)
+                else False
+            )
+            Clock.schedule_once(
+                lambda dt, r=rid, ap=active_primary, ab=active_backup: self._on_e2i_proxy_probed(r, ap, ab)
+            )
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_e2i_proxy_probed(self, rid, is_active, is_active_backup=False):
+        if rid != self._e2i_probe_req:
+            return
+        self._e2i_probe_ts = time.monotonic()
+        prev_ready = self._is_e2i_proxy_ready()
+        self.e2i_proxy_active = bool(is_active)
+        self.e2i_proxy_active_backup = bool(is_active_backup)
+        now_ready = self._is_e2i_proxy_ready()
+        if prev_ready != now_ready:
+            self._render_viewport()
+            sel = self.get_selected_channel()
+            if sel and sel.get("e2i"):
+                self._on_selection_changed()
+            if (
+                now_ready
+                and platform == "android"
+                and self._get_pig_mode() == "enigma2"
+                and not self.video_backend.is_playing
+                and App.get_running_app().root.current == "main"
+            ):
+                target = self._find_last_or_first_channel()
+                if target and target.get("e2i"):
+                    self._start_pig_for_item(target, save_last=False)
+
+    @staticmethod
+    def _epg_lookup(mapping, sref):
+        if not sref:
+            return None
+        ev = mapping.get(sref)
+        if ev is not None:
+            return ev
+        sh = short_sref(sref)
+        return mapping.get(sh) if sh and sh != sref else None
+
+    def _stop_e2i_proxy_if_active(self, next_is_e2i=False):
+        if next_is_e2i:
+            return
+        cur_sref = getattr(self.video_backend, "current_sref", "")
+        if is_e2iplayer_sref(cur_sref):
+            app = App.get_running_app()
+            if app:
+                stop_ip = self._active_stream_ip or app.config_data.get("ip", "")
+                notify_e2i_proxy_stop(app.config_data, ip_override=stop_ip)
+
     def _render_viewport(self):
         live_sref = self.video_backend.current_sref if self.video_backend.is_playing else ""
         for slot in range(self.VISIBLE_ROWS):
@@ -3250,8 +4777,14 @@ class EnigmaChannelSelectionScreen(Screen):
                 if it["type"] == "marker":
                     rw.bind_marker(it["name"])
                 else:
-                    rw.bind_channel(it, idx == self.selected_idx, self.epg_now.get(it["sref"]),
-                                    self.picon_manager, is_live=(it["sref"] == live_sref))
+                    rw.bind_channel(
+                        it,
+                        idx == self.selected_idx,
+                        self._epg_lookup(self.epg_now, it["sref"]),
+                        self.picon_manager,
+                        is_live=(it["sref"] == live_sref),
+                        key_mode=self._key_mode_for_item(it),
+                    )
             else:
                 rw.bind_empty()
         self._update_scrollbar()
@@ -3325,29 +4858,33 @@ class EnigmaChannelSelectionScreen(Screen):
         if not it:
             return
         sref, name = it["sref"], it["name"]
-        is_enc = bool(it.get("encrypted", False))
+        is_blocked = self._is_e2i_blocked(it)
         self.sel_ch_lbl.text = name
         self.header_picon.opacity = 0
         self.picon_manager.get_picon(sref, name, self._on_header_picon)
 
-        if is_enc:
+        if is_blocked:
+            port = self._e2i_proxy_port()
             self.epg_title_lbl.text = "Streaming szyfrowany (E2iPlayer)"
             self.epg_title_lbl.color = C_KEY_RED
-            self.epg_desc_lbl.text = "Naciśnij OK, aby zobaczyć szczegóły."
+            if port:
+                self.epg_desc_lbl.text = f"Brak aktywnego E2iStreamProxy na porcie {port}. Uruchom plugin na dekoderze."
+            else:
+                self.epg_desc_lbl.text = "Port E2iStreamProxy jest wyłączony (0). Włącz go w Ustawieniach (8099)."
             self.epg_start_lbl.text = self.epg_end_lbl.text = ""
             self.main_progress.set_progress(0.0, visible=False)
             for lbl in self.upcoming_lbls:
                 lbl.text = ""
         else:
             self.epg_title_lbl.color = C_CYAN
-            self._render_left_epg(self.epg_now.get(sref), self.epg_service_cache.get(sref, []))
+            self._render_left_epg(self._epg_lookup(self.epg_now, sref), self.epg_service_cache.get(sref, []))
 
         if self._detail_ev:
             self._detail_ev.cancel()
-        if not is_enc:
+        if not is_blocked:
             self._detail_ev = Clock.schedule_once(lambda dt: self._fetch_epg_service(sref), 0.22)
 
-        if is_enc:
+        if is_blocked:
             if self._pig_auto_ev:
                 self._pig_auto_ev.cancel()
             return
@@ -3356,7 +4893,8 @@ class EnigmaChannelSelectionScreen(Screen):
             if self._pig_auto_ev:
                 self._pig_auto_ev.cancel()
             if self._get_pig_mode() == "follow":
-                self._pig_auto_ev = Clock.schedule_once(lambda dt, sr=sref: self._auto_start_pig(sr), 1.0)
+                delay = 1.4 if it.get("e2i") else 1.0
+                self._pig_auto_ev = Clock.schedule_once(lambda dt, sr=sref: self._auto_start_pig(sr), delay)
 
     def _on_header_picon(self, sref, tex):
         it = self.get_selected_channel()
@@ -3400,18 +4938,32 @@ class EnigmaChannelSelectionScreen(Screen):
                 it = self.get_selected_channel()
                 ch_name = it.get("name", "") if it else ""
             mode_tag = "PIP:E2" if self._get_pig_mode() == "enigma2" else "PIP:Auto"
-            self.subinfo_lbl.color = C_MUTED
-            self.subinfo_lbl.text = f"{st} • {ch_name} ({mode_tag})  |  [OK] Pełny ekran  |  [◄] Menu  |  [2×◄] Pasek"
+            bk_tag = " [ZAPAS]" if self._using_backup_decoder else ""
+            hint_tail = self._list_hint_tail()
+            self.subinfo_lbl.color = (1.0, 0.80, 0.30, 1) if self._using_backup_decoder else C_MUTED
+            self.subinfo_lbl.text = f"{st} • {ch_name}{bk_tag} ({mode_tag})  |  {hint_tail}"
 
-    def _stream_url_for(self, sref):
+    def _selected_variant_idx(self, sref):
+        try:
+            return int(self._e2i_selected_idx.get(sref, 0))
+        except Exception:
+            return 0
+
+    def _stream_url_for(self, sref, ip_override=None):
+        cfg = App.get_running_app().config_data
+        ip = (ip_override if ip_override is not None else cfg.get("ip", "")).strip()
+        if is_e2iplayer_sref(sref):
+            e2i_port = self._e2i_proxy_port()
+            if ip and e2i_port:
+                idx = self._selected_variant_idx(sref)
+                idx_q = f"&idx={idx}" if idx > 0 else ""
+                return f"http://{ip}:{e2i_port}/stream?ref={urllib.parse.quote(sref, safe='')}{idx_q}"
         parts = sref.split(":", 10)
         if len(parts) >= 11:
             embedded = parts[10].split(":")[0]
             dec = urllib.parse.unquote(embedded)
             if dec.startswith(("http://", "https://", "rtsp://", "rtmp://")):
                 return dec
-        cfg = App.get_running_app().config_data
-        ip = cfg.get("ip", "")
         sport = cfg.get("stream_port", "8001")
         if cfg.get("stream_auth", False):
             u = (cfg.get("username", "") or "").strip()
@@ -3429,19 +4981,167 @@ class EnigmaChannelSelectionScreen(Screen):
             return dec.startswith(("http://", "https://", "rtsp://", "rtmp://"))
         return False
 
-    def _start_pig_for_item(self, item, save_last=True):
+    def _is_decoder_served_sref(self, sref):
+        """True dla kanałów DVB (8001) oraz E2iStreamProxy (8099), False dla zewnętrznych URL IPTV."""
+        if not sref:
+            return False
+        if is_e2iplayer_sref(sref):
+            return True
+        return not self._is_iptv_sref(sref)
+
+    def _cancel_failover_monitor(self):
+        if self._failover_ev is not None:
+            self._failover_ev.cancel()
+            self._failover_ev = None
+        if self._backup_err_ev is not None:
+            self._backup_err_ev.cancel()
+            self._backup_err_ev = None
+        self._failover_ctx = None
+
+    def _start_failover_monitor(self, item, mode, primary_ip, backup_ip):
+        self._cancel_failover_monitor()
+        if not backup_ip or backup_ip == primary_ip:
+            return
+        if not self._is_decoder_served_sref(item.get("sref", "")):
+            return
+        self._failover_ctx = {
+            "attempt_id": self._play_attempt_id,
+            "item": item,
+            "mode": mode,
+            "started_at": time.monotonic(),
+            "is_e2i": is_e2iplayer_sref(item.get("sref", "")),
+            "primary_ip": primary_ip,
+            "backup_ip": backup_ip,
+        }
+        self._failover_ev = Clock.schedule_interval(self._check_stream_failover, 0.4)
+
+    def _check_stream_failover(self, dt):
+        ctx = self._failover_ctx
+        if not ctx or ctx["attempt_id"] != self._play_attempt_id or not self.video_backend.is_playing:
+            self._cancel_failover_monitor()
+            return
+        pstate = self.video_backend.get_playback_state()
+        st_txt = (self.video_backend.get_status() or "").upper()
+        if pstate == 2:
+            # Strumień podstawowy wystartował poprawnie
+            self._cancel_failover_monitor()
+            return
+        if pstate == -1 or "BŁĄD" in st_txt or "WYJĄTEK" in st_txt:
+            self._trigger_backup_failover(ctx, reason="błąd odtwarzania")
+            return
+        timeout_sec = 14.0 if ctx["is_e2i"] else 7.0
+        if (time.monotonic() - ctx["started_at"]) >= timeout_sec:
+            self._trigger_backup_failover(ctx, reason="brak odpowiedzi")
+
+    def _trigger_backup_failover(self, ctx, reason="błąd odtwarzania"):
+        self._cancel_failover_monitor()
+        if ctx["attempt_id"] != self._play_attempt_id or self._failover_tried:
+            return
+        item = ctx["item"]
+        primary_ip = ctx["primary_ip"]
+        backup_ip = ctx["backup_ip"]
+        ch_name = clean_epg_text(item.get("name", ""), single_line=True)
+
+        if ctx["is_e2i"]:
+            app = App.get_running_app()
+            if app:
+                notify_e2i_proxy_stop(app.config_data, ip_override=primary_ip)
+
+        self._toast_until = time.monotonic() + 5.0
+        self.subinfo_lbl.color = (1.0, 0.80, 0.30, 1)
+        self.subinfo_lbl.text = (
+            f"Dekoder podstawowy ({primary_ip}): {reason} — przełączam na zapasowy ({backup_ip})..."
+        )
+        Clock.schedule_once(self._restore_subinfo_color, 5.05)
+
+        if ctx["mode"] == "fullscreen":
+            self.play_channel_fullscreen(item, use_backup=True, failover_reason=reason)
+        else:
+            self._start_pig_for_item(item, save_last=False, use_backup=True, failover_reason=reason)
+
+    def _start_backup_error_watch(self, attempt_id, primary_ip, backup_ip):
+        if self._backup_err_ev is not None:
+            self._backup_err_ev.cancel()
+        self._backup_err_notified = False
+        started_at = time.monotonic()
+
+        def _watch(dt):
+            if attempt_id != self._play_attempt_id or not self.video_backend.is_playing:
+                if self._backup_err_ev is not None:
+                    self._backup_err_ev.cancel()
+                    self._backup_err_ev = None
+                return
+            pstate = self.video_backend.get_playback_state()
+            if pstate == 2:
+                if self._backup_err_ev is not None:
+                    self._backup_err_ev.cancel()
+                    self._backup_err_ev = None
+                return
+            if pstate == -1 or (time.monotonic() - started_at) >= 16.0:
+                if self._backup_err_ev is not None:
+                    self._backup_err_ev.cancel()
+                    self._backup_err_ev = None
+                if not self._backup_err_notified:
+                    self._backup_err_notified = True
+                    msg = f"Błąd odtwarzania na dekoderze podstawowym ({primary_ip}) i zapasowym ({backup_ip})"
+                    self._toast_until = time.monotonic() + 5.5
+                    self.subinfo_lbl.color = C_ERROR
+                    self.subinfo_lbl.text = msg
+                    Clock.schedule_once(self._restore_subinfo_color, 5.55)
+                    self.video_backend.show_toast("Błąd odtwarzania", f"Niedostępny na {primary_ip} oraz {backup_ip}", 4.5)
+
+        self._backup_err_ev = Clock.schedule_interval(_watch, 0.6)
+
+    def _start_pig_for_item(self, item, save_last=True, use_backup=False, failover_reason=""):
         if not item:
             return
-        if item.get("encrypted"):
+        if self._is_e2i_blocked(item):
             self._show_encrypted_modal(item)
             return
+        cfg = App.get_running_app().config_data
+        primary_ip = (cfg.get("ip") or "").strip()
+        backup_ip = (cfg.get("backup_ip") or "").strip()
+        is_e2i = is_e2iplayer_sref(item["sref"])
+
+        # Jeśli E2iStreamProxy działa tylko na dekoderze zapasowym, użyj go od razu
+        if not use_backup and is_e2i and (not self.e2i_proxy_active) and self.e2i_proxy_active_backup and backup_ip:
+            use_backup = True
+            failover_reason = "brak E2iStreamProxy na podstawowym"
+
+        self._stop_e2i_proxy_if_active(next_is_e2i=is_e2i and not use_backup)
+        if not use_backup:
+            self._play_attempt_id += 1
+            self._using_backup_decoder = False
+            self._failover_tried = False
+        else:
+            self._using_backup_decoder = True
+            self._failover_tried = True
+
+        target_ip = backup_ip if (use_backup and backup_ip) else primary_ip
+        self._active_stream_ip = target_ip
         self.playing_item = item
         if save_last:
             App.get_running_app().update_config_fields(last_sref=item["sref"], last_bouquet_idx=self.bouquet_idx)
+
         ok, msg = self.video_backend.play_pig(
-            self._stream_url_for(item["sref"]), item["sref"], item["name"], self.pig_frame
+            self._stream_url_for(item["sref"], ip_override=target_ip),
+            item["sref"],
+            item["name"],
+            self.pig_frame,
         )
-        self.subinfo_lbl.text = msg
+        if use_backup:
+            self._toast_until = time.monotonic() + 4.5
+            self.subinfo_lbl.color = (1.0, 0.80, 0.30, 1)
+            why = f" ({failover_reason})" if failover_reason else ""
+            self.subinfo_lbl.text = f"Dekoder zapasowy ({backup_ip}){why}: {item['name']}"
+            Clock.schedule_once(self._restore_subinfo_color, 4.55)
+            self._start_backup_error_watch(self._play_attempt_id, primary_ip, backup_ip)
+        else:
+            self.subinfo_lbl.text = msg
+            if ok and backup_ip and backup_ip != primary_ip:
+                self._start_failover_monitor(item, "pig", primary_ip, backup_ip)
+            else:
+                self._cancel_failover_monitor()
         self._render_viewport()
 
     def preview_selected_in_pig(self):
@@ -3456,23 +5156,29 @@ class EnigmaChannelSelectionScreen(Screen):
             except Exception:
                 pass
             self.active_modal = None
+        self._stop_e2i_proxy_if_active(next_is_e2i=False)
         self.video_backend.hide()
         self.playing_item = None
         self._render_viewport()
         ch_name = item.get("name", "") if item else ""
-        modal = EncryptedStreamModal(channel_name=ch_name)
+        port = self._e2i_proxy_port()
+        if port:
+            detail = f"Nie wykryto aktywnego serwisu E2iStreamProxy na porcie {port}.\nSprawdź plugin E2iStreamProxy na dekoderze."
+        else:
+            detail = "Port E2iStreamProxy jest wyłączony (0).\nUstaw port 8099 w Ustawieniach, aby odtwarzać kanały E2iPlayer."
+        modal = EncryptedStreamModal(channel_name=ch_name, detail_text=detail)
         modal.bind(on_dismiss=lambda *a: setattr(self, "active_modal", None))
         self.active_modal = modal
         modal.open()
 
-    def _build_infobar_data(self, item):
+    def _build_infobar_data(self, item, use_backup=False):
         sref = item["sref"]
         name = clean_epg_text(item["name"], single_line=True)
         num = item.get("num", "")
         ch_title = f"{num}. {name}" if num else name
 
-        now_ev = self.epg_now.get(sref)
-        next_ev = self.epg_next.get(sref)
+        now_ev = self._epg_lookup(self.epg_now, sref)
+        next_ev = self._epg_lookup(self.epg_next, sref)
         svc_evs = self.epg_service_cache.get(sref, [])
 
         if not now_ev and svc_evs:
@@ -3518,7 +5224,14 @@ class EnigmaChannelSelectionScreen(Screen):
             "next_title": next_title,
             "next_dur_text": next_dur_text,
             "picon_path": picon_path,
-            "source_tag": "IPTV" if self._is_iptv_sref(sref) else "ENIGMA2",
+            "source_tag": (
+                (
+                    format_e2i_source_tag(sref)
+                    if is_e2iplayer_sref(sref)
+                    else ("IPTV" if self._is_iptv_sref(sref) else "ENIGMA2")
+                )
+                + (" (ZAPAS)" if use_backup else "")
+            ),
         }
 
     def _on_fullscreen_picon_ready(self, sref, tex):
@@ -3533,7 +5246,184 @@ class EnigmaChannelSelectionScreen(Screen):
         if it:
             self.play_channel_fullscreen(it)
 
-    def play_channel_fullscreen(self, item):
+    def _fetch_resolve_links_worker(self, sref, callback):
+        cfg = dict(App.get_running_app().config_data)
+        primary_ip = (cfg.get("ip") or "").strip()
+        backup_ip = (cfg.get("backup_ip") or "").strip()
+        ip = (
+            self._active_stream_ip
+            if self._active_stream_ip
+            else (backup_ip if (not self.e2i_proxy_active and self.e2i_proxy_active_backup and backup_ip) else primary_ip)
+        )
+        port = get_e2i_proxy_port(cfg)
+        if not ip or not port:
+            Clock.schedule_once(lambda dt: callback(None, "Port E2iStreamProxy nie jest skonfigurowany."))
+            return
+
+        def _worker():
+            variants = None
+            err = ""
+            try:
+                url = f"http://{ip}:{port}/resolve?ref={urllib.parse.quote(sref, safe='')}"
+                req = make_webif_request(url, cfg=cfg)
+                with urllib.request.urlopen(req, timeout=18) as resp:
+                    payload = json.loads(resp.read().decode("utf-8", "replace"))
+                if not payload.get("ok"):
+                    err = payload.get("error") or "Błąd pobierania listy wariantów."
+                else:
+                    variants = extract_top_res_audio_variants(payload.get("links") or [])
+            except Exception as e:
+                err = f"Błąd odczytu wariantów: {e}"
+            Clock.schedule_once(lambda dt, v=variants, m=err: callback(v, m))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def apply_e2i_audio_variant_idx(self, new_idx, return_to_player=True):
+        it = self.playing_item or self.get_selected_channel()
+        if not it or not it.get("e2i"):
+            return
+        sref = it["sref"]
+        new_idx = int(new_idx)
+        old_idx = self._selected_variant_idx(sref)
+        self._e2i_selected_idx[sref] = new_idx
+
+        chosen_label = f"Wariant #{new_idx}"
+        res_txt = ""
+        for v in (self._e2i_variants_cache.get(sref) or []):
+            if int(v.get("idx", -1)) == new_idx:
+                chosen_label = v.get("label", chosen_label)
+                res_txt = v.get("res_text", "")
+                break
+
+        self._toast_until = time.monotonic() + 3.5
+        self.subinfo_lbl.color = C_MINT
+        self.subinfo_lbl.text = f"Audio [{res_txt}]: {chosen_label}" if res_txt else f"Audio: {chosen_label}"
+        Clock.schedule_once(self._restore_subinfo_color, 3.55)
+
+        if new_idx == old_idx and self.video_backend.is_playing and self.video_backend.current_sref == sref:
+            return
+        if return_to_player:
+            self.play_channel_fullscreen(it)
+        elif self.video_backend.is_playing and self.video_backend.current_sref == sref:
+            self._start_pig_for_item(it, save_last=False)
+
+    def _show_variant_modal(self, item, variants, return_to_player=False):
+        sref = item["sref"]
+        cur_idx = self._selected_variant_idx(sref)
+        ch_name = item.get("name", "")
+        res_tag = variants[0].get("res_text", "") if variants else ""
+
+        # Na Android TV w trybie pełnoekranowym używamy natywnej nakładki Androida (nad TextureView)
+        if return_to_player and self.video_backend.is_embedded:
+            title_txt = f"AUDIO I NAPISY  •  {res_tag}" if res_tag else "AUDIO I NAPISY"
+            app = App.get_running_app()
+            if self.video_backend.open_custom_audio_menu(title_txt, variants, cur_idx):
+                if app:
+                    app._awaiting_e2i_audio_pick = True
+                return
+
+        if self.active_modal:
+            try:
+                self.active_modal.dismiss()
+            except Exception:
+                pass
+            self.active_modal = None
+
+        def _on_picked(chosen):
+            self.apply_e2i_audio_variant_idx(int(chosen.get("idx", 0)), return_to_player=return_to_player)
+
+        modal = E2iAudioVariantModal(
+            channel_name=ch_name,
+            variants=variants,
+            current_idx=cur_idx,
+            on_select=_on_picked,
+        )
+        modal.bind(on_dismiss=lambda *a: setattr(self, "active_modal", None))
+        self.active_modal = modal
+        modal.open()
+
+    def open_e2i_audio_selector_for_selected(self):
+        it = self.get_selected_channel()
+        if not it or not it.get("e2i"):
+            return False
+        if self._is_e2i_blocked(it):
+            self._show_encrypted_modal(it)
+            return True
+        sref = it["sref"]
+        if sref in self._e2i_variants_cache:
+            vars_list = self._e2i_variants_cache[sref]
+            if vars_list:
+                self._show_variant_modal(it, vars_list, return_to_player=False)
+            else:
+                self._toast_until = time.monotonic() + 2.5
+                self.subinfo_lbl.color = C_GRAY
+                self.subinfo_lbl.text = "Ten kanał ma tylko jeden strumień w najwyższej rozdzielczości."
+                Clock.schedule_once(self._restore_subinfo_color, 2.55)
+            return True
+
+        self._e2i_var_req += 1
+        req_id = self._e2i_var_req
+        self._toast_until = time.monotonic() + 8.0
+        self.subinfo_lbl.color = C_CYAN
+        self.subinfo_lbl.text = f"Pobieram warianty audio dla {it.get('name', '')}..."
+
+        def _cb(vars_list, err_msg):
+            if req_id != self._e2i_var_req:
+                return
+            if err_msg:
+                self._toast_until = time.monotonic() + 4.0
+                self.subinfo_lbl.color = C_ERROR
+                self.subinfo_lbl.text = err_msg
+                Clock.schedule_once(self._restore_subinfo_color, 4.05)
+                return
+            self._e2i_variants_cache[sref] = vars_list
+            if vars_list:
+                self._toast_until = 0.0
+                self.subinfo_lbl.color = C_MUTED
+                self._show_variant_modal(it, vars_list, return_to_player=False)
+            else:
+                self._toast_until = time.monotonic() + 2.5
+                self.subinfo_lbl.color = C_GRAY
+                self.subinfo_lbl.text = "Ten kanał ma tylko jeden strumień w najwyższej rozdzielczości."
+                Clock.schedule_once(self._restore_subinfo_color, 2.55)
+
+        self._fetch_resolve_links_worker(sref, _cb)
+        return True
+
+    def try_open_e2i_audio_selector(self, return_to_player=True):
+        it = self.playing_item or self.get_selected_channel()
+        if not it or not it.get("e2i") or self._is_e2i_blocked(it):
+            return False
+        sref = it["sref"]
+        if sref in self._e2i_variants_cache:
+            vars_list = self._e2i_variants_cache[sref]
+            if vars_list:
+                self._show_variant_modal(it, vars_list, return_to_player=return_to_player)
+                return True
+            return False
+
+        self._e2i_var_req += 1
+        req_id = self._e2i_var_req
+        self.video_backend.show_toast("Audio", "Sprawdzam warianty strumienia...", 2.5)
+
+        def _cb(vars_list, err_msg):
+            if req_id != self._e2i_var_req:
+                return
+            app = App.get_running_app()
+            same_chan = bool(self.playing_item and self.playing_item.get("sref") == sref)
+            if not (app and app.root and app.root.current == "player" and same_chan):
+                return
+            if vars_list:
+                self._e2i_variants_cache[sref] = vars_list
+                self._show_variant_modal(it, vars_list, return_to_player=return_to_player)
+            else:
+                self._e2i_variants_cache[sref] = None
+                self.video_backend.open_track_menu(0)
+
+        self._fetch_resolve_links_worker(sref, _cb)
+        return True
+
+    def play_channel_fullscreen(self, item, use_backup=False, failover_reason=""):
         sref, name = item["sref"], item["name"]
 
         for i, x in enumerate(self.items):
@@ -3542,24 +5432,63 @@ class EnigmaChannelSelectionScreen(Screen):
                 self._ensure_visible()
                 break
 
-        if item.get("encrypted"):
+        if self._is_e2i_blocked(item):
             app = App.get_running_app()
             if app and app.root and app.root.current != "main":
                 app.root.current = "main"
             self._show_encrypted_modal(item)
             return
 
-        self.playing_item = item
-        App.get_running_app().update_config_fields(last_sref=sref, last_bouquet_idx=self.bouquet_idx)
+        app = App.get_running_app()
+        cfg = app.config_data
+        primary_ip = (cfg.get("ip") or "").strip()
+        backup_ip = (cfg.get("backup_ip") or "").strip()
+        is_e2i = is_e2iplayer_sref(sref)
 
-        ib_data = self._build_infobar_data(item)
+        if not use_backup and is_e2i and (not self.e2i_proxy_active) and self.e2i_proxy_active_backup and backup_ip:
+            use_backup = True
+            failover_reason = "brak E2iStreamProxy na podstawowym"
+
+        self._stop_e2i_proxy_if_active(next_is_e2i=is_e2i and not use_backup)
+        if not use_backup:
+            self._play_attempt_id += 1
+            self._using_backup_decoder = False
+            self._failover_tried = False
+        else:
+            self._using_backup_decoder = True
+            self._failover_tried = True
+
+        target_ip = backup_ip if (use_backup and backup_ip) else primary_ip
+        self._active_stream_ip = target_ip
+        self.playing_item = item
+        app.update_config_fields(last_sref=sref, last_bouquet_idx=self.bouquet_idx)
+
+        ib_data = self._build_infobar_data(item, use_backup=use_backup)
         embedded_fs, msg = self.video_backend.play_fullscreen(
-            self._stream_url_for(sref), sref, name, infobar_data=ib_data
+            self._stream_url_for(sref, ip_override=target_ip), sref, name, infobar_data=ib_data
         )
-        self.subinfo_lbl.text = msg
+        if use_backup:
+            why = f" ({failover_reason})" if failover_reason else ""
+            self.video_backend.show_toast(
+                "Dekoder zapasowy",
+                f"Błąd na {primary_ip}{why} — łączę z {backup_ip}",
+                4.5,
+            )
+            self._toast_until = time.monotonic() + 5.0
+            self.subinfo_lbl.color = (1.0, 0.80, 0.30, 1)
+            self.subinfo_lbl.text = f"Dekoder zapasowy ({backup_ip}){why}: {name}"
+            Clock.schedule_once(self._restore_subinfo_color, 5.05)
+            self._start_backup_error_watch(self._play_attempt_id, primary_ip, backup_ip)
+        else:
+            self.subinfo_lbl.text = msg
+            if backup_ip and backup_ip != primary_ip:
+                self._start_failover_monitor(item, "fullscreen", primary_ip, backup_ip)
+            else:
+                self._cancel_failover_monitor()
+
         self._render_viewport()
         if embedded_fs and self.video_backend.is_embedded:
-            App.get_running_app().root.current = "player"
+            app.root.current = "player"
 
     def zap_in_fullscreen(self, delta):
         self.move_selection(delta)
@@ -3574,8 +5503,9 @@ class EnigmaChannelSelectionScreen(Screen):
         rid = self._epg_b_req
         cfg = dict(App.get_running_app().config_data)
         bref_q = urllib.parse.quote(b_ref, safe="")
-        url_now = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnow?bRef={bref_q}"
-        url_next = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgnext?bRef={bref_q}"
+        wip = self._webif_active_ip or cfg.get("ip", "")
+        url_now = f"http://{wip}:{cfg.get('web_port', '80')}/api/epgnow?bRef={bref_q}"
+        url_next = f"http://{wip}:{cfg.get('web_port', '80')}/api/epgnext?bRef={bref_q}"
 
         def worker():
             evs_now, evs_next = [], []
@@ -3601,30 +5531,44 @@ class EnigmaChannelSelectionScreen(Screen):
             b, d = ev.get("begin_timestamp") or 0, ev.get("duration_sec") or 0
             ev["_progress"] = max(0.0, min(1.0, (now_ts - b) / d)) if b > 0 and d > 0 else 0.0
             self.epg_now[sref] = ev
+            sh = short_sref(sref)
+            if sh and sh != sref:
+                self.epg_now.setdefault(sh, ev)
         for ev in events_next:
             sref = ev.get("sref", "")
             if sref:
                 self.epg_next[sref] = ev
+                sh = short_sref(sref)
+                if sh and sh != sref:
+                    self.epg_next.setdefault(sh, ev)
         self._render_viewport()
         it = self.get_selected_channel()
         if it:
-            self._render_left_epg(self.epg_now.get(it["sref"]), self.epg_service_cache.get(it["sref"], []))
+            self._render_left_epg(self._epg_lookup(self.epg_now, it["sref"]), self.epg_service_cache.get(it["sref"], []))
 
     def _fetch_epg_service(self, sref):
         if not sref:
             return
         if sref in self.epg_service_cache:
-            return self._render_left_epg(self.epg_now.get(sref), self.epg_service_cache[sref])
+            return self._render_left_epg(self._epg_lookup(self.epg_now, sref), self.epg_service_cache[sref])
         self._epg_s_req += 1
         rid = self._epg_s_req
         cfg = dict(App.get_running_app().config_data)
-        url = f"http://{cfg.get('ip')}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(sref, safe='')}"
+        wip = self._webif_active_ip or cfg.get("ip", "")
+        url = f"http://{wip}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(sref, safe='')}"
 
         def worker():
             try:
                 req = make_webif_request(url, cfg=cfg)
                 with urllib.request.urlopen(req, timeout=5) as r:
                     evs = clean_epg_events(json.loads(r.read().decode("utf-8")).get("events", []))
+                if not evs and is_e2iplayer_sref(sref):
+                    alt = short_sref(sref)
+                    if alt and alt != sref:
+                        alt_url = f"http://{wip}:{cfg.get('web_port', '80')}/api/epgservice?sRef={urllib.parse.quote(alt, safe='')}"
+                        req2 = make_webif_request(alt_url, cfg=cfg)
+                        with urllib.request.urlopen(req2, timeout=5) as r2:
+                            evs = clean_epg_events(json.loads(r2.read().decode("utf-8")).get("events", []))
                 Clock.schedule_once(lambda dt: self._apply_epg_service(rid, sref, evs))
             except Exception:
                 pass
@@ -3635,7 +5579,7 @@ class EnigmaChannelSelectionScreen(Screen):
         self.epg_service_cache[sref] = events[:10]
         it = self.get_selected_channel()
         if rid == self._epg_s_req and it and it["sref"] == sref:
-            self._render_left_epg(self.epg_now.get(sref), events[:10])
+            self._render_left_epg(self._epg_lookup(self.epg_now, sref), events[:10])
 
     def _render_left_epg(self, now_ev, service_events):
         now_ts = time.time()
@@ -3657,8 +5601,13 @@ class EnigmaChannelSelectionScreen(Screen):
                 self.epg_start_lbl.text = self.epg_end_lbl.text = ""
                 self.main_progress.set_progress(0.0, visible=False)
         else:
+            app = App.get_running_app()
+            rmode = app.get_remote_mode() if app else "android"
             self.epg_title_lbl.text = "Brak danych EPG"
-            self.epg_desc_lbl.text = "OK = pełny ekran  |  ◄ = Menu & Bukiety  |  2×◄ = EPG / MENU / EXIT"
+            if rmode == "enigma2":
+                self.epg_desc_lbl.text = "OK = pełny ekran  |  ZIELONY = Bukiety  |  ŻÓŁTY = Menu  |  NIEBIESKI = Odśwież"
+            else:
+                self.epg_desc_lbl.text = "OK = pełny ekran  |  ◄ = Menu & Bukiety  |  2×◄ = EPG / MENU / EXIT"
             self.epg_start_lbl.text = self.epg_end_lbl.text = ""
             self.main_progress.set_progress(0.0, visible=False)
 
@@ -3674,14 +5623,17 @@ class EnigmaChannelSelectionScreen(Screen):
         self._left_timer = None
         self.open_bouquet_modal()
 
-    def handle_dpad(self, key):
+    def handle_dpad(self, key, key_id=None):
+        app = App.get_running_app()
+        rmode = app.get_remote_mode() if app else "android"
+
         if self.active_modal:
             if isinstance(self.active_modal, BouquetModal):
-                if key == 276 and (time.monotonic() - getattr(self.active_modal, "opened_at", 0.0)) <= 0.35:
+                if rmode == "android" and key == 276 and (time.monotonic() - getattr(self.active_modal, "opened_at", 0.0)) <= 0.35:
                     self.active_modal.dismiss()
                     self._enter_lbtn_focus(0)
                     return True
-                if key == ord("r"):
+                if key == ord("r") or (rmode == "enigma2" and key == ord("g")):
                     self.active_modal.dismiss()
                     return True
             if hasattr(self.active_modal, "handle_key"):
@@ -3710,6 +5662,92 @@ class EnigmaChannelSelectionScreen(Screen):
             else:
                 return True
 
+        if rmode == "enigma2":
+            if self._left_timer is not None:
+                self._left_timer.cancel()
+                self._left_timer = None
+            if key == 273:
+                self.move_selection(-1)
+                return True
+            if key == 274:
+                self.move_selection(1)
+                return True
+            if key == 276:
+                self.move_selection(-self.VISIBLE_ROWS)
+                return True
+            if key == 275:
+                self.move_selection(self.VISIBLE_ROWS)
+                return True
+            if key == 280:
+                self._cycle_bouquet(1)
+                return True
+            if key == 281:
+                self._cycle_bouquet(-1)
+                return True
+            if key == 27:
+                self.show_exit_hint()
+                return True
+            if key in (13, 271, 23):
+                self.play_selected_fullscreen()
+                return True
+            if key == ord("r"):
+                self._focus_channel_list_action()
+                return True
+            if key == ord("g"):
+                self.open_bouquet_modal()
+                return True
+            if key == ord("y"):
+                self.open_settings()
+                return True
+            if key == ord("b"):
+                self.load_bouquets()
+                return True
+            if key == ord("a"):
+                self.open_e2i_audio_selector_for_selected()
+                return True
+            if key in (ord("e"), ord("i")):
+                app.open_epg_from("main")
+                return True
+            if key == ord("m"):
+                self.open_settings()
+                return True
+            return False
+
+        if rmode == "custom":
+            if self._left_timer is not None:
+                self._left_timer.cancel()
+                self._left_timer = None
+            kid = key_id or kivy_key_to_key_id(key)
+            act = app.resolve_custom_action("list", kid) if app else None
+            if act and self._exec_list_action(act):
+                return True
+            if key == 273:
+                self.move_selection(-1)
+                return True
+            if key == 274:
+                self.move_selection(1)
+                return True
+            if key == 276:
+                self.move_selection(-self.VISIBLE_ROWS)
+                return True
+            if key == 275:
+                self.move_selection(self.VISIBLE_ROWS)
+                return True
+            if key == 280:
+                self.move_selection(-self.VISIBLE_ROWS)
+                return True
+            if key == 281:
+                self.move_selection(self.VISIBLE_ROWS)
+                return True
+            if key == 27:
+                self.show_exit_hint()
+                return True
+            if key in (13, 271, 23):
+                self.play_selected_fullscreen()
+                return True
+            return False
+
+        # Domyślny tryb "android" (identyczny z v1.6)
         if key == 276:
             if self._left_timer is not None:
                 self._left_timer.cancel()
@@ -3750,11 +5788,14 @@ class EnigmaChannelSelectionScreen(Screen):
         if key == ord("y"):
             self.preview_selected_in_pig()
             return True
+        if key == ord("a"):
+            self.open_e2i_audio_selector_for_selected()
+            return True
         if key == ord("b"):
             self.open_settings()
             return True
         if key == ord("e"):
-            App.get_running_app().open_epg_from("main")
+            app.open_epg_from("main")
             return True
         if key == ord("m"):
             self.open_settings()
@@ -3788,6 +5829,7 @@ class EnigmaTVApp(App):
             sm.current = "settings"
 
         self._last_back_ts = 0.0
+        self._awaiting_e2i_audio_pick = False
         Window.bind(on_keyboard=self.on_keyboard)
         self._android_activity_cls = None
         if platform == "android":
@@ -3802,8 +5844,68 @@ class EnigmaTVApp(App):
             try:
                 os.remove(old_apk)
             except Exception:
-                pass        
+                pass
+        self.apply_remote_settings()
         return sm
+
+    def get_remote_mode(self):
+        rm = (self.config_data or {}).get("remote_mode", "android")
+        return rm if any(k == rm for k, _ in REMOTE_MODES) else "android"
+
+    def get_custom_keymap(self):
+        return normalize_custom_keymap((self.config_data or {}).get("custom_keymap"))
+
+    def resolve_custom_action(self, group, key_id):
+        if not key_id:
+            return None
+        km = self.get_custom_keymap()
+        for aid, kid in km.items():
+            if kid == key_id and CUSTOM_ACTION_META.get(aid, {}).get("group") == group:
+                return aid
+        return None
+
+    def set_android_key_capture(self, enabled):
+        if platform == "android" and self._android_activity_cls:
+            try:
+                self._android_activity_cls.setTvKeyCaptureMode(bool(enabled))
+            except Exception:
+                pass
+
+    def _is_custom_key_capture_active(self):
+        return bool(
+            self.root
+            and self.root.current == "settings"
+            and self.settings_screen.active_modal is not None
+            and hasattr(self.settings_screen.active_modal, "is_capturing")
+            and self.settings_screen.active_modal.is_capturing()
+        )
+
+    def _build_infobar_hint_text(self):
+        rmode = self.get_remote_mode()
+        if rmode == "enigma2":
+            return "[▲ ▼ / CZERW] Lista   •   [◄ ► / CH±] Kanał   •   [AUDIO / ŻÓŁTY] Audio   •   [EPG] EPG   •   [OK] Pasek"
+        if rmode == "custom":
+            km = self.get_custom_keymap()
+            k_aud = key_id_to_label(km.get("player_audio", ""))
+            k_epg = key_id_to_label(km.get("player_epg", ""))
+            k_prev = key_id_to_label(km.get("player_zap_prev", ""))
+            k_next = key_id_to_label(km.get("player_zap_next", ""))
+            k_ib = key_id_to_label(km.get("player_infobar", ""))
+            k_list = key_id_to_label(km.get("player_list", ""))
+            return f"[{k_aud}] Audio   •   [{k_epg}] EPG   •   [{k_prev}/{k_next}] Kanał   •   [{k_ib}] Pasek   •   [{k_list}] Lista"
+        return "[◄ / MENU] Audio & Napisy   •   [►] EPG   •   [▲ ▼] Kanał   •   [OK] Pasek   •   [WSTECZ] Lista"
+
+    def apply_remote_settings(self):
+        if platform == "android" and self._android_activity_cls:
+            try:
+                csv = extract_custom_android_keycodes(self.get_custom_keymap()) if self.get_remote_mode() == "custom" else ""
+                self._android_activity_cls.setCustomTvKeys(csv)
+            except Exception:
+                pass
+        if hasattr(self, "main_screen") and self.main_screen:
+            self.main_screen.refresh_remote_ui()
+        if hasattr(self, "video_backend") and self.video_backend:
+            self.video_backend.set_infobar_hint(self._build_infobar_hint_text())
 
     def open_epg_from(self, source_screen):
         ch = self.main_screen.playing_item if (source_screen == "player" and self.main_screen.playing_item) else self.main_screen.get_selected_channel()
@@ -3812,7 +5914,7 @@ class EnigmaTVApp(App):
         b_ref = ""
         if self.main_screen.bouquets:
             b_ref = self.main_screen.bouquets[self.main_screen.bouquet_idx].get("servicereference", "")
-        initial_now = self.main_screen.epg_now.get(ch.get("sref", ""))
+        initial_now = self.main_screen._epg_lookup(self.main_screen.epg_now, ch.get("sref", ""))
         self.epg_screen.open_for_channel(
             channel_item=ch,
             bouquet_items=self.main_screen.items,
@@ -4001,6 +6103,10 @@ class EnigmaTVApp(App):
             self._show_update_error(f"Błąd instalacji: {e}")
 
     def on_stop(self):
+        self.set_android_key_capture(False)
+        if is_e2iplayer_sref(getattr(self.video_backend, "current_sref", "")):
+            active_ip = getattr(self.main_screen, "_active_stream_ip", "") or self.config_data.get("ip", "")
+            notify_e2i_proxy_stop(self.config_data, ip_override=active_ip)
         self.video_backend.stop()
         self.picon_manager.shutdown()
 
@@ -4012,8 +6118,18 @@ class EnigmaTVApp(App):
             if kc < 0:
                 break
             self._dispatch_android_keycode(kc)
+        if self._awaiting_e2i_audio_pick:
+            chosen_idx = self.video_backend.poll_custom_audio_choice()
+            if chosen_idx >= 0:
+                self._awaiting_e2i_audio_pick = False
+                self.main_screen.apply_e2i_audio_variant_idx(chosen_idx, return_to_player=True)
 
     def _dispatch_android_keycode(self, kc):
+        if self._is_custom_key_capture_active():
+            self.settings_screen.active_modal.on_captured_key(android_kc_to_key_id(kc))
+            return
+
+        key_id = android_kc_to_key_id(kc)
         codepoint = ""
         nkey = None
         if kc == 19:
@@ -4055,13 +6171,22 @@ class EnigmaTVApp(App):
         elif 7 <= kc <= 16:
             nkey = 48 + (kc - 7)
             codepoint = str(kc - 7)
+        elif key_id:
+            nkey = -int(kc)
 
         if nkey is not None:
-            handled = self._route_key(nkey, codepoint)
+            handled = self._route_key(nkey, codepoint, key_id=key_id)
             if not handled and nkey == 27 and platform == "android":
                 self.stop()
 
     def exit_application(self):
+        try:
+            self.set_android_key_capture(False)
+            if is_e2iplayer_sref(getattr(self.video_backend, "current_sref", "")):
+                active_ip = getattr(self.main_screen, "_active_stream_ip", "") or self.config_data.get("ip", "")
+                notify_e2i_proxy_stop(self.config_data, ip_override=active_ip)
+        except Exception:
+            pass
         try:
             self.picon_manager.shutdown()
         except Exception:
@@ -4077,10 +6202,14 @@ class EnigmaTVApp(App):
         if cur == "main":
             return (not self.main_screen.active_modal) and (not self.main_screen._lbtn_focus)
         if cur == "settings":
-            return (self.settings_screen.zone == "fields") and (not self.settings_screen._has_saved_ip())
+            return (
+                (not self.settings_screen.active_modal)
+                and (self.settings_screen.zone == "fields")
+                and (not self.settings_screen._has_saved_ip())
+            )
         return False
 
-    def _route_key(self, nkey, codepoint=""):
+    def _route_key(self, nkey, codepoint="", key_id=None):
         if nkey == 27 and self._can_double_back_exit():
             now = time.monotonic()
             if now - self._last_back_ts <= 1.8:
@@ -4094,15 +6223,18 @@ class EnigmaTVApp(App):
         if cur == "settings":
             return self.settings_screen.handle_dpad(nkey, codepoint)
         if cur == "main":
-            return self.main_screen.handle_dpad(nkey)
+            return self.main_screen.handle_dpad(nkey, key_id=key_id)
         if cur == "player":
-            return self.player_screen.handle_dpad(nkey)
+            return self.player_screen.handle_dpad(nkey, key_id=key_id)
         if cur == "epg":
             return self.epg_screen.handle_dpad(nkey)
         return False
 
     def on_keyboard(self, window, key, scancode, codepoint, modifier):
-        return self._route_key(normalize_remote_key(key, scancode), codepoint or "")
+        nkey = normalize_remote_key(key, scancode)
+        if self._is_custom_key_capture_active():
+            return self.settings_screen.active_modal.on_captured_key(kivy_key_to_key_id(nkey))
+        return self._route_key(nkey, codepoint or "", key_id=kivy_key_to_key_id(nkey))
 
     def load_enigma_config(self):
         if os.path.exists(self.config_path):
@@ -4126,20 +6258,31 @@ class EnigmaTVApp(App):
         self._write_config_file()
 
     def save_config(self, ip, web_port, stream_port, picon_dir, pig_mode=None,
-                    username="", password="", stream_auth=False):
+                    username="", password="", stream_auth=False, e2i_proxy_port=DEFAULT_E2I_PROXY_PORT,
+                    backup_ip="", remote_mode=None, custom_keymap=None):
         self.config_data.update({
             "ip": ip,
+            "backup_ip": (backup_ip or "").strip(),
             "web_port": web_port,
             "stream_port": stream_port,
             "picon_dir": picon_dir,
             "username": username,
             "password": password,
             "stream_auth": bool(stream_auth),
+            "e2i_proxy_port": str(e2i_proxy_port),
         })
         if pig_mode is not None:
             self.config_data["pig_mode"] = pig_mode
         elif "pig_mode" not in self.config_data:
             self.config_data["pig_mode"] = "follow"
+        if remote_mode is not None:
+            self.config_data["remote_mode"] = remote_mode
+        elif "remote_mode" not in self.config_data:
+            self.config_data["remote_mode"] = "android"
+        if custom_keymap is not None:
+            self.config_data["custom_keymap"] = normalize_custom_keymap(custom_keymap)
+        elif "custom_keymap" not in self.config_data:
+            self.config_data["custom_keymap"] = dict(DEFAULT_CUSTOM_KEYMAP_ANDROID)
         self._write_config_file()
 
 

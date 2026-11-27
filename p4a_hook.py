@@ -4,15 +4,58 @@ from pathlib import Path
 
 
 TV_KEY_FIELDS = """
+    // TV_KEY_FIELDS_V17_BEGIN
     private static final java.util.concurrent.ConcurrentLinkedQueue<Integer> tvKeyQueue =
             new java.util.concurrent.ConcurrentLinkedQueue<Integer>();
+    private static volatile boolean tvKeyCaptureMode = false;
+    private static final java.util.Set<Integer> customTvKeys =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<Integer, Boolean>());
 
     public static int pollTvKey() {
         Integer v = tvKeyQueue.poll();
         return v == null ? -1 : v.intValue();
     }
 
+    public static void setTvKeyCaptureMode(boolean enabled) {
+        tvKeyCaptureMode = enabled;
+    }
+
+    public static void setCustomTvKeys(String csv) {
+        customTvKeys.clear();
+        if (csv == null || csv.trim().isEmpty()) {
+            return;
+        }
+        for (String tok : csv.split(",")) {
+            try {
+                int kc = Integer.parseInt(tok.trim());
+                if (kc > 0 && !isSystemReservedKey(kc)) {
+                    customTvKeys.add(kc);
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
+    private static boolean isSystemReservedKey(int keyCode) {
+        switch (keyCode) {
+            case android.view.KeyEvent.KEYCODE_HOME:
+            case android.view.KeyEvent.KEYCODE_POWER:
+            case android.view.KeyEvent.KEYCODE_SLEEP:
+            case android.view.KeyEvent.KEYCODE_WAKEUP:
+            case android.view.KeyEvent.KEYCODE_VOLUME_UP:
+            case android.view.KeyEvent.KEYCODE_VOLUME_DOWN:
+            case android.view.KeyEvent.KEYCODE_ASSIST:
+            case android.view.KeyEvent.KEYCODE_VOICE_ASSIST:
+                return true;
+            default:
+                return false;
+        }
+    }
+
     private static boolean isTvNavKey(int keyCode) {
+        if (customTvKeys.contains(keyCode)) {
+            return true;
+        }
         switch (keyCode) {
             case android.view.KeyEvent.KEYCODE_DPAD_UP:
             case android.view.KeyEvent.KEYCODE_DPAD_DOWN:
@@ -33,6 +76,22 @@ TV_KEY_FIELDS = """
             case android.view.KeyEvent.KEYCODE_PROG_GREEN:
             case android.view.KeyEvent.KEYCODE_PROG_YELLOW:
             case android.view.KeyEvent.KEYCODE_PROG_BLUE:
+            case android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+            case android.view.KeyEvent.KEYCODE_MEDIA_PLAY:
+            case android.view.KeyEvent.KEYCODE_MEDIA_PAUSE:
+            case android.view.KeyEvent.KEYCODE_MEDIA_STOP:
+            case android.view.KeyEvent.KEYCODE_MEDIA_REWIND:
+            case android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD:
+            case android.view.KeyEvent.KEYCODE_MEDIA_NEXT:
+            case android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS:
+            case android.view.KeyEvent.KEYCODE_PAGE_UP:
+            case android.view.KeyEvent.KEYCODE_PAGE_DOWN:
+            case android.view.KeyEvent.KEYCODE_MUTE:
+            case android.view.KeyEvent.KEYCODE_TV:
+            case android.view.KeyEvent.KEYCODE_LAST_CHANNEL:
+            case android.view.KeyEvent.KEYCODE_BOOKMARK:
+            case android.view.KeyEvent.KEYCODE_STAR:
+            case android.view.KeyEvent.KEYCODE_POUND:
             case android.view.KeyEvent.KEYCODE_DEL:
             case android.view.KeyEvent.KEYCODE_0:
             case android.view.KeyEvent.KEYCODE_1:
@@ -44,15 +103,27 @@ TV_KEY_FIELDS = """
             case android.view.KeyEvent.KEYCODE_7:
             case android.view.KeyEvent.KEYCODE_8:
             case android.view.KeyEvent.KEYCODE_9:
+            case android.view.KeyEvent.KEYCODE_F1:
+            case android.view.KeyEvent.KEYCODE_F2:
+            case android.view.KeyEvent.KEYCODE_F3:
+            case android.view.KeyEvent.KEYCODE_F4:
                 return true;
             default:
                 return false;
         }
     }
+    // TV_KEY_FIELDS_V17_END
 """
 
 TV_DISPATCH_BODY = """
+        // TV_DISPATCH_V17_BEGIN
         int _tvKc = event.getKeyCode();
+        if (tvKeyCaptureMode && !isSystemReservedKey(_tvKc)) {
+            if (event.getAction() == android.view.KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+                tvKeyQueue.offer(_tvKc);
+            }
+            return true;
+        }
         if (isTvNavKey(_tvKc)) {
             if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
                 boolean _allowRep = (_tvKc == android.view.KeyEvent.KEYCODE_DPAD_UP
@@ -66,6 +137,7 @@ TV_DISPATCH_BODY = """
             }
             return true;
         }
+        // TV_DISPATCH_V17_END
 """
 
 TV_VLC_CONTROLLER_JAVA = r"""package org.kivy.android;
@@ -92,6 +164,9 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
@@ -149,9 +224,12 @@ public class TvVlcController {
     private static ImageView ibPicon;
     private static FrameLayout ibPiconWrap;
     private static TextView ibStreamInfo;
+    private static TextView ibHint;
+    private static volatile String ibHintText = "[◄ / MENU] Audio & Napisy   •   [►] EPG   •   [▲ ▼] Kanał   •   [OK] Pasek   •   [WSTECZ] Lista";
 
     // Nakładka wyboru ścieżki Audio i Napisów
     private static LinearLayout trackPanel;
+    private static TextView trackTitleView;
     private static TextView tabAudioBtn;
     private static TextView tabSubBtn;
     private static ScrollView trackScroll;
@@ -160,6 +238,8 @@ public class TvVlcController {
     private static final List<TrackItem> subItems = new ArrayList<TrackItem>();
     private static final List<TextView> trackRowViews = new ArrayList<TextView>();
     private static volatile boolean trackMenuOpen = false;
+    private static volatile boolean customAudioMode = false;
+    private static volatile int pendingCustomAudioId = -1;
     private static int trackTab = 0;      // 0 = Audio, 1 = Napisy
     private static int trackSelIdx = 0;
 
@@ -179,6 +259,8 @@ public class TvVlcController {
 
     private static volatile String currentUrl = "";
     private static volatile String lastStatus = "";
+    private static volatile int playbackState = 0; // 0=idle, 1=connecting/buffering, 2=live, -1=error
+    private static volatile int playbackGen = 0;
     private static volatile boolean active = false;
     private static volatile boolean inFullscreen = false;
     private static volatile int volume = 100;
@@ -237,57 +319,77 @@ public class TvVlcController {
                 }
             };
 
-    private static final MediaPlayer.EventListener playerEventListener = new MediaPlayer.EventListener() {
-        @Override
-        public void onEvent(MediaPlayer.Event event) {
-            if (event == null) {
-                return;
-            }
-            switch (event.type) {
-                case MediaPlayer.Event.Opening:
-                    lastStatus = "VLC: Łączenie ze strumieniem...";
-                    break;
-                case MediaPlayer.Event.Buffering:
-                    int pct = (int) event.getBuffering();
-                    lastStatus = pct < 100 ? ("VLC: Buforowanie " + pct + "%") : "VLC: LIVE";
-                    if (pct >= 100 && infobar != null && infobar.getVisibility() == View.VISIBLE) {
+    private static MediaPlayer.EventListener createEventListener(final int gen) {
+        return new MediaPlayer.EventListener() {
+            @Override
+            public void onEvent(MediaPlayer.Event event) {
+                if (event == null || gen != playbackGen) {
+                    return;
+                }
+                switch (event.type) {
+                    case MediaPlayer.Event.Opening:
+                        playbackState = 1;
+                        lastStatus = "VLC: Łączenie ze strumieniem...";
+                        break;
+                    case MediaPlayer.Event.Buffering:
+                        int pct = (int) event.getBuffering();
+                        if (pct >= 100) {
+                            playbackState = 2;
+                            lastStatus = "VLC: LIVE";
+                        } else {
+                            if (playbackState != 2) playbackState = 1;
+                            lastStatus = "VLC: Buforowanie " + pct + "%";
+                        }
+                        if (pct >= 100 && infobar != null && infobar.getVisibility() == View.VISIBLE) {
+                            uiHandler.post(new Runnable() {
+                                @Override
+                                public void run() {
+                                    refreshDynamicInfobarUi();
+                                }
+                            });
+                        }
+                        break;
+                    case MediaPlayer.Event.Playing:
+                    case MediaPlayer.Event.Vout:
+                    case MediaPlayer.Event.ESAdded:
+                    case MediaPlayer.Event.ESSelected:
+                        playbackState = 2;
+                        lastStatus = "VLC: LIVE";
                         uiHandler.post(new Runnable() {
                             @Override
                             public void run() {
-                                refreshDynamicInfobarUi();
+                                if (infobar != null && infobar.getVisibility() == View.VISIBLE) {
+                                    refreshDynamicInfobarUi();
+                                }
                             }
                         });
-                    }
-                    break;
-                case MediaPlayer.Event.Playing:
-                case MediaPlayer.Event.Vout:
-                case MediaPlayer.Event.ESAdded:
-                case MediaPlayer.Event.ESSelected:
-                    lastStatus = "VLC: LIVE";
-                    uiHandler.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (infobar != null && infobar.getVisibility() == View.VISIBLE) {
-                                refreshDynamicInfobarUi();
-                            }
-                        }
-                    });
-                    break;
-                case MediaPlayer.Event.EncounteredError:
-                    lastStatus = "VLC BŁĄD: nie można otworzyć strumienia";
-                    Log.e(TAG, "VLC EncounteredError for url=" + currentUrl);
-                    break;
-                case MediaPlayer.Event.EndReached:
-                    lastStatus = "VLC: Strumień zakończony";
-                    break;
-                default:
-                    break;
+                        break;
+                    case MediaPlayer.Event.EncounteredError:
+                        playbackState = -1;
+                        lastStatus = "VLC BŁĄD: nie można otworzyć strumienia";
+                        Log.e(TAG, "VLC EncounteredError for url=" + currentUrl);
+                        break;
+                    case MediaPlayer.Event.EndReached:
+                        playbackState = -1;
+                        lastStatus = "VLC: Strumień zakończony";
+                        break;
+                    default:
+                        break;
+                }
             }
-        }
-    };
+        };
+    }
 
     public static String getStatus() {
         return lastStatus == null ? "" : lastStatus;
+    }
+
+    public static int getPlaybackState() {
+        return playbackState;
+    }
+
+    public static int getPlaybackGen() {
+        return playbackGen;
     }
 
     public static boolean isActive() {
@@ -474,8 +576,8 @@ public class TvVlcController {
         infobar.addView(ibStreamInfo, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView ibHint = makeTv(a, 10.5f, Color.rgb(132, 150, 170), false);
-        ibHint.setText("[◄ / MENU] Audio & Napisy   •   [►] EPG   •   [▲ ▼] Kanał   •   [OK] Pasek   •   [WSTECZ] Lista");
+        ibHint = makeTv(a, 10.5f, Color.rgb(132, 150, 170), false);
+        ibHint.setText(ibHintText);
         LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hintLp.setMargins(0, dp(a, 3), 0, 0);
@@ -502,9 +604,9 @@ public class TvVlcController {
         trackPanel.setPadding(dp(a, 18), dp(a, 14), dp(a, 18), dp(a, 12));
         trackPanel.setVisibility(View.GONE);
 
-        TextView title = makeTv(a, 17.5f, Color.rgb(102, 206, 250), true);
-        title.setText("AUDIO I NAPISY");
-        trackPanel.addView(title, new LinearLayout.LayoutParams(
+        trackTitleView = makeTv(a, 17.5f, Color.rgb(102, 206, 250), true);
+        trackTitleView.setText("AUDIO I NAPISY");
+        trackPanel.addView(trackTitleView, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout tabsRow = new LinearLayout(a);
@@ -546,7 +648,7 @@ public class TvVlcController {
         ftLp.setMargins(0, dp(a, 10), 0, 0);
         trackPanel.addView(footer, ftLp);
 
-        FrameLayout.LayoutParams tpLp = new FrameLayout.LayoutParams(dp(a, 470), ViewGroup.LayoutParams.WRAP_CONTENT);
+        FrameLayout.LayoutParams tpLp = new FrameLayout.LayoutParams(dp(a, 540), ViewGroup.LayoutParams.WRAP_CONTENT);
         tpLp.gravity = Gravity.CENTER;
         content.addView(trackPanel, tpLp);
 
@@ -566,7 +668,7 @@ public class TvVlcController {
         content.addView(topPill, pillLp);
     }
 
-    private static void recreateMediaPlayerUi() {
+    private static void recreateMediaPlayerUi(int gen) {
         if (mediaPlayer != null) {
             try {
                 mediaPlayer.setEventListener(null);
@@ -582,14 +684,14 @@ public class TvVlcController {
         }
         if (libVlc != null) {
             mediaPlayer = new MediaPlayer(libVlc);
-            mediaPlayer.setEventListener(playerEventListener);
+            mediaPlayer.setEventListener(createEventListener(gen));
         }
     }
 
     private static void ensureInitUi(final Activity activity) {
         if (libVlc != null && videoView != null) {
             if (mediaPlayer == null) {
-                recreateMediaPlayerUi();
+                recreateMediaPlayerUi(playbackGen);
             }
             return;
         }
@@ -600,7 +702,7 @@ public class TvVlcController {
         opts.add("--http-reconnect");
 
         libVlc = new LibVLC(activity, opts);
-        recreateMediaPlayerUi();
+        recreateMediaPlayerUi(playbackGen);
 
         final FrameLayout content = (FrameLayout) activity.findViewById(android.R.id.content);
         videoView = new TextureView(activity);
@@ -972,6 +1074,8 @@ public class TvVlcController {
         if (activity == null || mediaPlayer == null || !active) {
             return;
         }
+        customAudioMode = false;
+        pendingCustomAudioId = -1;
         trackMenuOpen = true;
         activity.runOnUiThread(new Runnable() {
             @Override
@@ -986,6 +1090,13 @@ public class TvVlcController {
                         infobar.setVisibility(View.GONE);
                         uiHandler.removeCallbacks(hideInfobarRunnable);
                         uiHandler.removeCallbacks(infobarTickRunnable);
+                    }
+                    if (topPill != null) {
+                        topPill.setVisibility(View.GONE);
+                        uiHandler.removeCallbacks(hideTopPillRunnable);
+                    }
+                    if (trackTitleView != null) {
+                        trackTitleView.setText("AUDIO I NAPISY");
                     }
                     populateTrackListsUi();
                     trackTab = (startTab == 1) ? 1 : 0;
@@ -1008,8 +1119,82 @@ public class TvVlcController {
         });
     }
 
+    public static void openCustomAudioMenu(final String titleText, final String itemsJson, final int currentId) {
+        final Activity activity = getActivity();
+        if (activity == null || mediaPlayer == null || !active || itemsJson == null || itemsJson.isEmpty()) {
+            return;
+        }
+        customAudioMode = true;
+        pendingCustomAudioId = -1;
+        trackMenuOpen = true;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    ensureInitUi(activity);
+                    if (mediaPlayer == null || !active) {
+                        trackMenuOpen = false;
+                        customAudioMode = false;
+                        return;
+                    }
+                    if (infobar != null) {
+                        infobar.setVisibility(View.GONE);
+                        uiHandler.removeCallbacks(hideInfobarRunnable);
+                        uiHandler.removeCallbacks(infobarTickRunnable);
+                    }
+                    if (topPill != null) {
+                        topPill.setVisibility(View.GONE);
+                        uiHandler.removeCallbacks(hideTopPillRunnable);
+                    }
+                    populateTrackListsUi();
+                    audioItems.clear();
+                    JSONArray arr = new JSONArray(itemsJson);
+                    for (int i = 0; i < arr.length(); i++) {
+                        JSONObject obj = arr.optJSONObject(i);
+                        if (obj == null) continue;
+                        int id = obj.optInt("id", i);
+                        String lbl = obj.optString("label", "Audio #" + id);
+                        audioItems.add(new TrackItem(id, lbl, id == currentId, true));
+                    }
+                    if (audioItems.isEmpty()) {
+                        trackMenuOpen = false;
+                        customAudioMode = false;
+                        return;
+                    }
+                    if (trackTitleView != null) {
+                        String t = (titleText != null && !titleText.trim().isEmpty()) ? titleText.trim() : "AUDIO I NAPISY";
+                        trackTitleView.setText(t);
+                    }
+                    trackTab = 0;
+                    trackSelIdx = 0;
+                    for (int i = 0; i < audioItems.size(); i++) {
+                        if (audioItems.get(i).active) {
+                            trackSelIdx = i;
+                            break;
+                        }
+                    }
+                    renderTrackMenuUi(activity);
+                    trackPanel.setVisibility(View.VISIBLE);
+                    trackPanel.bringToFront();
+                } catch (Throwable t) {
+                    trackMenuOpen = false;
+                    customAudioMode = false;
+                    Log.e(TAG, "openCustomAudioMenu failed", t);
+                }
+            }
+        });
+    }
+
+    public static int pollCustomAudioChoice() {
+        int v = pendingCustomAudioId;
+        pendingCustomAudioId = -1;
+        return v;
+    }
+
     public static void closeTrackMenu() {
         trackMenuOpen = false;
+        customAudioMode = false;
+        pendingCustomAudioId = -1;
         final Activity activity = getActivity();
         if (activity == null) return;
         activity.runOnUiThread(new Runnable() {
@@ -1060,7 +1245,9 @@ public class TvVlcController {
     public static void confirmTrackMenu() {
         final Activity activity = getActivity();
         if (activity == null || !trackMenuOpen) return;
+        final boolean wasCustomAudio = customAudioMode;
         trackMenuOpen = false;
+        customAudioMode = false;
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -1070,8 +1257,15 @@ public class TvVlcController {
                         TrackItem item = list.get(trackSelIdx);
                         if (item.selectable) {
                             if (trackTab == 0) {
-                                mediaPlayer.setAudioTrack(item.id);
-                                showTopPillUi("AUDIO: " + item.label, 2800);
+                                if (wasCustomAudio) {
+                                    if (item.id >= 0) {
+                                        pendingCustomAudioId = item.id;
+                                        showTopPillUi("AUDIO: " + item.label, 2800);
+                                    }
+                                } else {
+                                    mediaPlayer.setAudioTrack(item.id);
+                                    showTopPillUi("AUDIO: " + item.label, 2800);
+                                }
                             } else {
                                 mediaPlayer.setSpuTrack(item.id);
                                 showTopPillUi("NAPISY: " + item.label, 2800);
@@ -1410,6 +1604,8 @@ public class TvVlcController {
         videoView.bringToFront();
         if (!fullscreen) {
             trackMenuOpen = false;
+            customAudioMode = false;
+            pendingCustomAudioId = -1;
             if (trackPanel != null) trackPanel.setVisibility(View.GONE);
             if (topPill != null) topPill.setVisibility(View.GONE);
             if (infobar != null) {
@@ -1428,23 +1624,36 @@ public class TvVlcController {
     public static void play(final String url, final double fx, final double fy, final double fw, final double fh, final boolean fullscreen) {
         final Activity activity = getActivity();
         if (activity == null || url == null || url.isEmpty()) {
+            playbackState = -1;
             lastStatus = "VLC BŁĄD: brak aktywności lub URL";
             return;
+        }
+        final boolean preSame = url.equals(currentUrl) && active && playbackState == 2;
+        final int reqGen = preSame ? playbackGen : ++playbackGen;
+        if (!preSame) {
+            playbackState = 1;
+            lastStatus = "VLC: Łączenie...";
         }
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 try {
+                    if (reqGen != playbackGen) {
+                        return;
+                    }
                     ensureInitUi(activity);
                     boolean samePlaying = url.equals(currentUrl) && active && mediaPlayer != null && mediaPlayer.isPlaying();
                     if (!samePlaying) {
                         trackMenuOpen = false;
+                        customAudioMode = false;
+                        pendingCustomAudioId = -1;
                         if (trackPanel != null) trackPanel.setVisibility(View.GONE);
                         lastVideoW = 0;
                         lastVideoH = 0;
                         lastSarNum = 0;
                         lastSarDen = 0;
-                        recreateMediaPlayerUi();
+                        playbackState = 1;
+                        recreateMediaPlayerUi(reqGen);
                     }
 
                     int[] wh = applyBoundsUi(activity, fx, fy, fw, fh, fullscreen);
@@ -1461,8 +1670,10 @@ public class TvVlcController {
                         lastStatus = "VLC: Łączenie...";
                         Media media = new Media(libVlc, Uri.parse(url));
                         media.setHWDecoderEnabled(true, false);
-                        media.addOption(":network-caching=800");
-                        media.addOption(":live-caching=800");
+                        boolean isE2iProxy = url.contains("/stream?ref=") || url.contains("/stream/");
+                        int cacheMs = isE2iProxy ? 1800 : 800;
+                        media.addOption(":network-caching=" + cacheMs);
+                        media.addOption(":live-caching=" + cacheMs);
                         mediaPlayer.setMedia(media);
                         media.release();
                         mediaPlayer.setScale(0f);
@@ -1472,6 +1683,7 @@ public class TvVlcController {
                         active = true;
                     }
                 } catch (Throwable t) {
+                    playbackState = -1;
                     lastStatus = "VLC WYJĄTEK: " + t.getClass().getSimpleName() + ": " + t.getMessage();
                     Log.e(TAG, "play failed", t);
                 }
@@ -1539,6 +1751,9 @@ public class TvVlcController {
                     ibNextTitle.setText((nextTitle == null || nextTitle.isEmpty()) ? "Brak kolejnej audycji" : nextTitle);
                     ibNextDur.setText(nextDurText == null ? "" : nextDurText);
 
+                    if (ibHint != null) {
+                        ibHint.setText(ibHintText);
+                    }
                     applyPiconUi(piconPath);
                     refreshDynamicInfobarUi();
 
@@ -1553,6 +1768,22 @@ public class TvVlcController {
                     }
                 } catch (Throwable t) {
                     Log.e(TAG, "showInfobarRich failed", t);
+                }
+            }
+        });
+    }
+
+    public static void setInfobarHint(final String hintText) {
+        if (hintText != null && !hintText.isEmpty()) {
+            ibHintText = hintText;
+        }
+        final Activity activity = getActivity();
+        if (activity == null) return;
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ibHint != null) {
+                    ibHint.setText(ibHintText);
                 }
             }
         });
@@ -1610,6 +1841,9 @@ public class TvVlcController {
                     uiHandler.removeCallbacks(infobarTickRunnable);
                     infobar.setVisibility(View.GONE);
                 } else {
+                    if (ibHint != null) {
+                        ibHint.setText(ibHintText);
+                    }
                     refreshDynamicInfobarUi();
                     infobar.setVisibility(View.VISIBLE);
                     infobar.bringToFront();
@@ -1641,6 +1875,8 @@ public class TvVlcController {
 
     public static void hide() {
         trackMenuOpen = false;
+        playbackGen++;
+        playbackState = 0;
         final Activity activity = getActivity();
         if (activity == null) return;
         activity.runOnUiThread(new Runnable() {
@@ -1675,6 +1911,8 @@ public class TvVlcController {
 
     public static void stopAndRelease() {
         trackMenuOpen = false;
+        playbackGen++;
+        playbackState = 0;
         final Activity activity = getActivity();
         if (activity == null) return;
         activity.runOnUiThread(new Runnable() {
@@ -1765,27 +2003,6 @@ def _patch_manifest(manifest_file):
     if 'android:hardwareAccelerated="false"' in text:
         text = text.replace('android:hardwareAccelerated="false"', 'android:hardwareAccelerated="true"')
 
-    # Usuń przestarzały atrybut extractNativeLibs (kompresję .so kontroluje useLegacyPackaging w build.gradle)
-    text = re.sub(r'\s*android:extractNativeLibs="(?:true|false)"', "", text)
-
-    # Usuń zduplikowane REQUEST_INSTALL_PACKAGES (szablon używa pętli z buildozer.spec, wynikowy manifest zostawia 1 wpis)
-    req_install_re = re.compile(
-        r'[ \t]*<uses-permission\s+android:name="android\.permission\.REQUEST_INSTALL_PACKAGES"\s*/>\r?\n?'
-    )
-    if "{% for perm in args.permissions %}" in text:
-        text = req_install_re.sub("", text)
-    else:
-        seen_req_install = False
-
-        def _dedup_req_install(match):
-            nonlocal seen_req_install
-            if not seen_req_install:
-                seen_req_install = True
-                return match.group(0)
-            return ""
-
-        text = req_install_re.sub(_dedup_req_install, text)
-
     extras = []
     if "usesCleartextTraffic" not in text:
         extras.append('android:usesCleartextTraffic="true"')
@@ -1831,6 +2048,7 @@ def _patch_manifest(manifest_file):
     manifest_file.write_text(text, encoding="utf-8")
     print(f"[HOOK] Zaktualizowano manifest dla Android TV + APK Update: {manifest_file}")
 
+
 def _create_file_paths(dist_dir):
     xml_dir = dist_dir / "src" / "main" / "res" / "xml"
     xml_dir.mkdir(parents=True, exist_ok=True)
@@ -1862,20 +2080,26 @@ def _patch_python_activity(dist_dir):
         print(f"[HOOK] UWAGA: nie znaleziono {pa}")
         return
     text = pa.read_text(encoding="utf-8")
-    if "pollTvKey()" in text:
-        if "KEYCODE_MEDIA_AUDIO_TRACK" not in text:
-            text = text.replace(
-                "case android.view.KeyEvent.KEYCODE_INFO:",
-                "case android.view.KeyEvent.KEYCODE_INFO:\n"
-                "            case android.view.KeyEvent.KEYCODE_CAPTIONS:\n"
-                "            case android.view.KeyEvent.KEYCODE_MEDIA_AUDIO_TRACK:",
-                1,
-            )
-            pa.write_text(text, encoding="utf-8")
-            print(f"[HOOK] Dopisano klawisze AUDIO/CAPTIONS do: {pa}")
-        else:
-            print("[HOOK] PythonActivity.java już ma pełną obsługę pilota Android TV")
+    if "TV_KEY_FIELDS_V17_BEGIN" in text and "TV_DISPATCH_V17_BEGIN" in text:
+        print("[HOOK] PythonActivity.java już ma obsługę pilota Android TV v1.7")
         return
+
+    # Jeśli istniejący dist ma starą wersję patcha (v1.4-v1.6), usuń stary blok i wstaw v1.7
+    if "pollTvKey()" in text:
+        text = re.sub(
+            r"\s*private static final java\.util\.concurrent\.ConcurrentLinkedQueue<Integer> tvKeyQueue =.*?default:\s*return false;\s*\}\s*\}\s*",
+            "\n",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
+        text = re.sub(
+            r"\s*int _tvKc = event\.getKeyCode\(\);\s*if \(isTvNavKey\(_tvKc\)\) \{.*?return true;\s*\}\s*",
+            "\n",
+            text,
+            count=1,
+            flags=re.DOTALL,
+        )
 
     if re.search(r"public\s+boolean\s+dispatchKeyEvent\s*\([^)]*\)\s*\{", text):
         text = re.sub(
@@ -1913,7 +2137,7 @@ def _write_tv_vlc_controller(dist_dir):
     java_dir.mkdir(parents=True, exist_ok=True)
     target = java_dir / "TvVlcController.java"
     target.write_text(TV_VLC_CONTROLLER_JAVA, encoding="utf-8")
-    print(f"[HOOK] Zapisano natywny odtwarzacz LibVLC v1.3 (fresh nativeGetTracks): {target}")
+    print(f"[HOOK] Zapisano natywny odtwarzacz LibVLC v1.71 (E2iStreamProxy + Failover + Custom Remote): {target}")
 
 
 def _slim_gradle(dist_dir):
